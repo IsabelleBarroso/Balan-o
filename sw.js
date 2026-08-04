@@ -1,7 +1,7 @@
 /* Balanço — service worker
    Troque o número da VERSAO sempre que publicar uma alteração:
    isso força o app a baixar a versão nova no celular. */
-const VERSAO = 'balanco-v1';
+const VERSAO = 'balanco-1.0.0';
 const ARQUIVOS = [
   './',
   './index.html',

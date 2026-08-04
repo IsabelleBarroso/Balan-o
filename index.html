@@ -33,6 +33,21 @@ input,select{font-family:inherit;font-size:inherit;color:inherit}
 .marca{font-family:var(--display);font-weight:700;font-size:26px;letter-spacing:-.02em;display:flex;align-items:center;gap:9px}
 .marca span{display:inline-block;width:26px;height:26px;border-radius:50%;background:var(--tinta);position:relative}
 .marca span::after{content:"";position:absolute;left:4px;top:12px;width:18px;height:2px;background:var(--nevoa);transform:rotate(-14deg)}
+.versao{cursor:pointer;letter-spacing:.06em}
+.versao:hover{background:var(--tinta);color:#fff;border-color:var(--tinta)}
+.aviso-nova{position:fixed;left:12px;right:12px;bottom:12px;background:var(--tinta);color:#fff;border-radius:14px;padding:13px 16px;display:none;align-items:center;gap:12px;z-index:55;box-shadow:var(--sombra)}
+.aviso-nova.on{display:flex}
+.aviso-nova b{flex:1;font-weight:500;font-size:14px}
+.aviso-nova button{background:#fff;color:var(--tinta);border:0;border-radius:9px;padding:7px 13px;font-weight:500}
+.versaolinha{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:2px}
+.versaolinha b{font-family:var(--dado);font-size:26px;font-weight:700;letter-spacing:-.02em}
+.mudanca{border-left:2px solid var(--linha);padding:0 0 16px 16px;margin-left:6px;position:relative}
+.mudanca:last-child{padding-bottom:0}
+.mudanca::before{content:"";position:absolute;left:-5px;top:4px;width:8px;height:8px;border-radius:50%;background:var(--tinta)}
+.mudanca h4{margin:0;font-family:var(--dado);font-size:13px;font-weight:700}
+.mudanca time{font-size:12px;color:var(--tinta-40)}
+.mudanca ul{margin:7px 0 0;padding-left:17px;font-size:13.5px;color:var(--tinta-70)}
+.mudanca li{margin-bottom:3px}
 .selo{font-family:var(--dado);font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--tinta-40);border:1px solid var(--linha);border-radius:999px;padding:4px 10px;background:var(--papel)}
 .abas{display:flex;gap:4px;overflow-x:auto;background:var(--papel);border:1px solid var(--linha);border-radius:999px;padding:4px;margin-bottom:18px;scrollbar-width:none}
 .abas::-webkit-scrollbar{display:none}
@@ -174,7 +189,9 @@ svg text{font-family:var(--dado)}
 <div id="app" class="oculto">
 <div class="wrap">
   <div class="topo">
-    <div class="marca"><span></span>Balanço</div>
+    <div class="marca"><span></span>Balanço
+      <button class="selo versao" id="seloVersao" onclick="irPara('ajustes')" title="Ver histórico de atualizações"></button>
+    </div>
     <div style="display:flex;align-items:center;gap:10px">
       <span class="estado" id="estado"><i></i><span>sincronizado</span></span>
       <button class="sair" onclick="sair()">Sair</button>
@@ -298,6 +315,23 @@ svg text{font-family:var(--dado)}
     </div>
   </section>
 
+  <!-- CONFIGURAÇÕES -->
+  <section id="tela-ajustes" class="oculto">
+    <div class="cartao">
+      <div class="cab"><h2 class="tit">Versão</h2><span class="selo" id="ajStatus"></span></div>
+      <div class="versaolinha"><b id="ajVersao"></b><span class="nota" id="ajData"></span></div>
+      <p class="nota" id="ajConta"></p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px">
+        <button class="btn fantasma mini" onclick="procurarAtualizacao()">Procurar atualização</button>
+        <button class="btn fantasma mini" onclick="baixarBackup()">Baixar cópia dos meus dados</button>
+      </div>
+    </div>
+    <div class="cartao">
+      <div class="cab"><h2 class="tit">Histórico de atualizações</h2></div>
+      <div id="ajHistorico"></div>
+    </div>
+  </section>
+
   <!-- CONTAS -->
   <section id="tela-contas" class="oculto">
     <div class="cartao">
@@ -356,8 +390,27 @@ svg text{font-family:var(--dado)}
 </div>
 <div class="veu" id="veu" onclick="if(event.target===this)fecharModal()"><div class="modal" id="modal"></div></div>
 <div class="toast" id="toast"></div>
+<div class="aviso-nova" id="avisoNova">
+  <b>Uma versão nova do Balanço está pronta.</b>
+  <button onclick="location.reload()">Atualizar</button>
+</div>
 
 <script>
+/* ================= versão ================= */
+const VERSAO='1.0.0';
+const HISTORICO=[
+  {v:'1.0.0', data:'2026-08-04', itens:[
+    'Primeira versão do Balanço.',
+    'Resumo com a balança do mês, gráficos por categoria, entradas x saídas e saldo acumulado.',
+    'Aba A pagar: tudo que vence no mês, com a fatura do cartão em uma linha só.',
+    'Cartão de crédito com fechamento, vencimento, limite e faturas futuras.',
+    'Parcelamento automático: lance a compra uma vez e as parcelas nascem sozinhas.',
+    'Dívidas separadas em curto, médio e longo prazo, mudando sozinhas conforme você paga.',
+    'Categorias, contas e cartões criados e editados por você dentro do app.',
+    'Sincronização com Firebase e instalação no celular.'
+  ]}
+];
+
 /* ================= Firebase ================= */
 /* >>> COLE AQUI OS DADOS DO SEU PROJETO FIREBASE <<< */
 const CONFIG_FIREBASE={
@@ -606,7 +659,7 @@ const prazoDe=d=>{const r=d.total_p-d.pagas;return r<=12?'curto':r<=36?'medio':'
 function aviso(t){const e=document.getElementById('toast');e.textContent=t;e.classList.add('on');clearTimeout(e._t);e._t=setTimeout(()=>e.classList.remove('on'),2600)}
 
 /* ================= navegação ================= */
-const TELAS=[['resumo','Resumo'],['agenda','A pagar'],['lancamentos','Lançamentos'],['cartao','Cartão'],['dividas','Dívidas'],['recorrentes','Recorrentes'],['categorias','Categorias'],['contas','Contas']];
+const TELAS=[['resumo','Resumo'],['agenda','A pagar'],['lancamentos','Lançamentos'],['cartao','Cartão'],['dividas','Dívidas'],['recorrentes','Recorrentes'],['categorias','Categorias'],['contas','Contas'],['ajustes','Configurações']];
 let telaAtual='resumo';
 function montarAbas(){
   document.getElementById('abas').innerHTML=TELAS.map(([k,n])=>`<button class="aba ${k===telaAtual?'on':''}" onclick="irPara('${k}')">${n}</button>`).join('');
@@ -1030,6 +1083,43 @@ function excluirConta(i){
   if(confirm('Excluir esta conta?')){contas=contas.filter(c=>c.id!==i);if(cartaoSel===i)cartaoSel=null;faturaVista=null;atualizar();aviso('Conta excluída.')}
 }
 
+/* ================= configurações ================= */
+function pintarAjustes(){
+  const h=HISTORICO[0];
+  document.getElementById('ajVersao').textContent='v'+VERSAO;
+  document.getElementById('ajData').textContent='publicada em '+h.data.split('-').reverse().join('/');
+  document.getElementById('ajStatus').textContent=MODO_DEMO?'modo demonstração':'sincronizado com o Firebase';
+  const u=(!MODO_DEMO&&firebase.auth().currentUser)?firebase.auth().currentUser.email:null;
+  document.getElementById('ajConta').textContent=u
+    ?'Conectada como '+u+'. Seus dados ficam salvos na nuvem e aparecem igual no celular e no computador.'
+    :'Sem conta conectada: os dados desta tela são fictícios, só para demonstração.';
+  document.getElementById('ajHistorico').innerHTML=HISTORICO.map(x=>`
+    <div class="mudanca">
+      <h4>v${x.v}</h4><time>${x.data.split('-').reverse().join('/')}</time>
+      <ul>${x.itens.map(i=>`<li>${i}</li>`).join('')}</ul>
+    </div>`).join('');
+}
+function procurarAtualizacao(){
+  aviso('Procurando versão nova...');
+  if('serviceWorker' in navigator){
+    navigator.serviceWorker.getRegistrations()
+      .then(rs=>Promise.all(rs.map(r=>r.update())))
+      .then(()=>setTimeout(()=>{if(!document.getElementById('avisoNova').classList.contains('on'))aviso('Você já está na versão mais recente (v'+VERSAO+').')},1500))
+      .catch(()=>aviso('Não deu para verificar agora.'));
+  } else aviso('Você está na versão v'+VERSAO+'.');
+}
+function baixarBackup(){
+  try{
+    const dados={app:'Balanço',versao:VERSAO,em:new Date().toISOString(),contas,categorias,lancamentos,dividas:dividasManuais,recorrentes};
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(new Blob([JSON.stringify(dados,null,1)],{type:'application/json'}));
+    a.download='balanco-'+hojeISO+'.json'; a.click();
+    setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+    aviso('Cópia baixada. Guarde em algum lugar seguro.');
+  }catch(e){aviso('Não deu para gerar a cópia neste aparelho.')}
+}
+function mostrarNova(){document.getElementById('avisoNova').classList.add('on')}
+
 /* ================= modal ================= */
 function abrirModal(titulo,corpo,aoSalvar,rotulo){
   document.getElementById('modal').innerHTML=`<h2 class="tit" style="margin:0 0 14px">${titulo}</h2>${corpo}
@@ -1240,6 +1330,7 @@ function pintarTudo(){
   if(telaAtual==='recorrentes') pintarRec();
   if(telaAtual==='categorias') pintarCat();
   if(telaAtual==='contas') pintarContas();
+  if(telaAtual==='ajustes') pintarAjustes();
 }
 document.addEventListener('keydown',e=>{if(e.key==='Escape')fecharModal()});
 
@@ -1253,13 +1344,24 @@ if('serviceWorker' in navigator&&location.protocol==='https:'){
         if(url&&!url.endsWith('/sw.js')) r.unregister();
       });
     }).catch(()=>{});
-    navigator.serviceWorker.register('sw.js').catch(()=>{});
+    navigator.serviceWorker.register('sw.js').then(reg=>{
+      reg.addEventListener('updatefound',()=>{
+        const novo=reg.installing;
+        if(!novo) return;
+        novo.addEventListener('statechange',()=>{
+          if(novo.state==='installed'&&navigator.serviceWorker.controller) mostrarNova();
+        });
+      });
+      /* confere se saiu versão nova de hora em hora */
+      setInterval(()=>reg.update().catch(()=>{}),3600000);
+    }).catch(()=>{});
   });
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',ligarFirebase); else ligarFirebase();
 ['lgEmail','lgSenha'].forEach(id=>{const e=document.getElementById(id);if(e)e.addEventListener('keydown',ev=>{if(ev.key==='Enter')entrar()})});
 
 function iniciarApp(){
+  const sv=document.getElementById('seloVersao'); if(sv) sv.textContent='v'+VERSAO;
   window.BAL={get lancamentos(){return lancamentos},get categorias(){return categorias},get dividas(){return dividasManuais},get recorrentes(){return recorrentes},get contas(){return contas}};
   document.getElementById('login').classList.add('oculto');
   document.getElementById('app').classList.remove('oculto');

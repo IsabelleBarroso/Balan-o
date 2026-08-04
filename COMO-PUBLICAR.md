@@ -125,7 +125,14 @@ Depois disso ele abre igual a um aplicativo, sem barra de navegador, e funciona 
 
 **Sincronização:** os dados ficam no Firebase, então celular e computador mostram a mesma coisa. O selinho no topo mostra "sincronizado", "salvando..." ou "sem conexão".
 
-**Quando eu publicar uma versão nova:** troque o número em `const VERSAO = 'balanco-v1'` no arquivo `sw.js` (v2, v3...) antes de subir. Sem isso o celular continua abrindo a versão antiga do cache.
+**Quando eu publicar uma versão nova:** os dois arquivos precisam ser atualizados juntos —
+
+1. `index.html` → `const VERSAO='1.0.0'` e a lista `HISTORICO` logo abaixo
+2. `sw.js` → `const VERSAO = 'balanco-1.0.0'`
+
+Os dois números devem bater. É isso que faz o celular perceber que saiu coisa nova: o app confere de hora em hora e, quando encontra, mostra uma faixa embaixo com o botão **Atualizar**. Você também pode conferir na hora em **Configurações → Procurar atualização**.
+
+A versão aparece do lado do nome Balanço, no topo. Tocando nela, você cai direto no histórico do que mudou.
 
 ---
 
