@@ -157,6 +157,10 @@ svg text{font-family:var(--dado)}
 .login .btn{width:100%;margin-top:6px}
 .login .alt{text-align:center;margin-top:14px;font-size:13px;color:var(--tinta-70)}
 .login .alt button{background:none;border:0;color:var(--tinta);text-decoration:underline;padding:0}
+.pin{text-align:center;font-family:var(--dado);font-size:26px;letter-spacing:.5em;text-indent:.5em;font-weight:700}
+.seg{display:flex;align-items:center;gap:10px;justify-content:space-between;flex-wrap:wrap;padding:11px 0;border-bottom:1px solid var(--linha)}
+.seg:last-child{border-bottom:0}
+.seg .item-txt small{display:block}
 .erro{background:#FCF0F2;border:1px solid #F0C6CE;color:var(--saida);border-radius:10px;padding:9px 12px;font-size:13px;margin-bottom:11px}
 /* barra de estado */
 .estado{display:flex;align-items:center;gap:6px;font-family:var(--dado);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--tinta-40)}
@@ -177,12 +181,27 @@ svg text{font-family:var(--dado)}
 <div class="login" id="login">
   <div class="login-caixa">
     <div class="marca"><span></span>Balanço</div>
-    <p class="sub">Seu controle financeiro</p>
+    <p class="sub" id="lgSub">Digite seu PIN para entrar</p>
     <div id="loginErro"></div>
-    <div class="campo"><label>E-mail</label><input id="lgEmail" type="email" autocomplete="email" placeholder="voce@email.com"></div>
-    <div class="campo"><label>Senha</label><input id="lgSenha" type="password" autocomplete="current-password" placeholder="••••••••"></div>
+    <div class="campo" id="boxEmail"><label>E-mail</label><input id="lgEmail" type="email" autocomplete="email" placeholder="voce@email.com"></div>
+    <div class="campo"><label id="lbPin">PIN de 4 dígitos</label>
+      <input id="lgPin" class="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="••••" autocomplete="off"></div>
+    <div class="campo oculto" id="boxPin2"><label>Repita o PIN</label>
+      <input id="lgPin2" class="pin" type="password" inputmode="numeric" pattern="[0-9]*" maxlength="4" placeholder="••••" autocomplete="off"></div>
     <button class="btn" id="lgBtn" onclick="entrar()">Entrar</button>
-    <p class="alt">Primeira vez? <button onclick="criarConta()">Criar minha conta</button></p>
+    <p class="alt" id="lgAlt"></p>
+  </div>
+</div>
+
+<div class="login oculto" id="trava">
+  <div class="login-caixa" style="text-align:center">
+    <div class="marca"><span></span>Balanço</div>
+    <p class="sub">App bloqueado</p>
+    <div id="travaErro"></div>
+    <button class="btn" onclick="desbloquear()">🔓 Desbloquear</button>
+    <div class="campo oculto" id="boxTravaPin" style="margin-top:14px"><label>Ou digite seu PIN</label>
+      <input id="tvPin" class="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>
+    <p class="alt"><button onclick="travaPorPin()">Prefiro usar o PIN</button></p>
   </div>
 </div>
 
@@ -326,6 +345,10 @@ svg text{font-family:var(--dado)}
         <button class="btn fantasma mini" onclick="baixarBackup()">Baixar cópia dos meus dados</button>
       </div>
     </div>
+    <div class="cartao" id="cardSeguranca">
+      <div class="cab"><h2 class="tit">Segurança</h2></div>
+      <div id="ajSeguranca"></div>
+    </div>
     <div class="cartao">
       <div class="cab"><h2 class="tit">Histórico de atualizações</h2></div>
       <div id="ajHistorico"></div>
@@ -397,8 +420,13 @@ svg text{font-family:var(--dado)}
 
 <script>
 /* ================= versão ================= */
-const VERSAO='1.0.0';
+const VERSAO='1.1.0';
 const HISTORICO=[
+  {v:'1.1.0', data:'2026-08-04', itens:[
+    'Entrada por PIN de 4 números no lugar da senha.',
+    'Desbloqueio por rosto ou digital, usando a biometria do próprio aparelho.',
+    'Nova seção Segurança nas Configurações, com troca de PIN.'
+  ]},
   {v:'1.0.0', data:'2026-08-04', itens:[
     'Primeira versão do Balanço.',
     'Resumo com a balança do mês, gráficos por categoria, entradas x saídas e saldo acumulado.',
@@ -437,35 +465,151 @@ function estado(txt,off){
   const e=document.getElementById('estado'); if(!e) return;
   e.classList.toggle('off',!!off); e.lastElementChild.textContent=txt;
 }
-function erroLogin(msg){
-  document.getElementById('loginErro').innerHTML=msg?`<div class="erro">${msg}</div>`:'';
+function erroLogin(msg,alvo){
+  const e=document.getElementById(alvo||'loginErro');
+  e.innerHTML=msg?`<div class="erro">${msg}</div>`:'';
 }
 function traduzErro(e){
   const c=(e&&e.code)||'';
   if(c.includes('invalid-email')) return 'E-mail inválido.';
-  if(c.includes('missing-password')) return 'Digite sua senha.';
-  if(c.includes('weak-password')) return 'A senha precisa ter pelo menos 6 caracteres.';
-  if(c.includes('email-already-in-use')) return 'Esse e-mail já tem conta. É só entrar.';
-  if(c.includes('invalid-credential')||c.includes('wrong-password')||c.includes('user-not-found')) return 'E-mail ou senha não conferem.';
+  if(c.includes('email-already-in-use')) return 'Esse e-mail já tem conta. Toque em "Já tenho conta" e use seu PIN.';
+  if(c.includes('invalid-credential')||c.includes('wrong-password')||c.includes('user-not-found')) return 'E-mail ou PIN não conferem.';
+  if(c.includes('too-many-requests')) return 'Muitas tentativas seguidas. Espere alguns minutos e tente de novo.';
   if(c.includes('network')) return 'Sem conexão com a internet.';
+  if(c.includes('operation-not-allowed')) return 'O login por e-mail ainda não foi ativado no Firebase.';
   return 'Não deu certo: '+(e.message||c);
 }
+
+/* --------- guarda coisas simples no próprio aparelho --------- */
+function guardar(k,v){try{localStorage.setItem('balanco:'+k,v)}catch(e){}}
+function lembrar(k){try{return localStorage.getItem('balanco:'+k)}catch(e){return null}}
+function esquecer(k){try{localStorage.removeItem('balanco:'+k)}catch(e){}}
+
+/* O PIN vira a senha do Firebase somando este complemento fixo,
+   porque o Firebase exige no mínimo 6 caracteres. */
+const COMPLEMENTO='·balanco·9f2c7a41';
+const senhaDoPin=p=>p+COMPLEMENTO;
+const soDigitos=p=>/^[0-9]{4}$/.test(p);
+
+let modoCriar=false;
+function prepararLogin(){
+  const email=lembrar('email');
+  if(email){document.getElementById('lgEmail').value=email;document.getElementById('boxEmail').classList.add('oculto')}
+  else {document.getElementById('boxEmail').classList.remove('oculto'); modoCriar=!lembrar('jaUsou')}
+  pintarLogin();
+}
+function pintarLogin(){
+  document.getElementById('lgSub').textContent=modoCriar?'Crie sua conta e escolha um PIN':'Digite seu PIN para entrar';
+  document.getElementById('boxPin2').classList.toggle('oculto',!modoCriar);
+  document.getElementById('boxEmail').classList.toggle('oculto',!modoCriar&&!!lembrar('email'));
+  document.getElementById('lgBtn').textContent=modoCriar?'Criar minha conta':'Entrar';
+  document.getElementById('lgAlt').innerHTML=modoCriar
+    ?'Já tem conta? <button onclick="alternarModo()">Entrar com meu PIN</button>'
+    :'Primeira vez? <button onclick="alternarModo()">Criar minha conta</button>'
+     +(lembrar('email')?' · <button onclick="trocarEmail()">Usar outro e-mail</button>':'');
+  erroLogin('');
+}
+function alternarModo(){modoCriar=!modoCriar;pintarLogin()}
+function trocarEmail(){esquecer('email');document.getElementById('lgEmail').value='';document.getElementById('boxEmail').classList.remove('oculto')}
+
 function entrar(){
   erroLogin('');
-  const em=document.getElementById('lgEmail').value.trim(), sn=document.getElementById('lgSenha').value;
-  if(!em||!sn) return erroLogin('Preencha e-mail e senha.');
-  document.getElementById('lgBtn').textContent='Entrando...';
-  firebase.auth().signInWithEmailAndPassword(em,sn)
-    .catch(e=>{erroLogin(traduzErro(e));document.getElementById('lgBtn').textContent='Entrar'});
-}
-function criarConta(){
-  erroLogin('');
-  const em=document.getElementById('lgEmail').value.trim(), sn=document.getElementById('lgSenha').value;
-  if(!em||!sn) return erroLogin('Preencha e-mail e senha para criar a conta.');
-  firebase.auth().createUserWithEmailAndPassword(em,sn).catch(e=>erroLogin(traduzErro(e)));
+  const em=document.getElementById('lgEmail').value.trim();
+  const pin=document.getElementById('lgPin').value;
+  if(!em) return erroLogin('Digite seu e-mail.');
+  if(!soDigitos(pin)) return erroLogin('O PIN precisa ter exatamente 4 números.');
+  const btn=document.getElementById('lgBtn');
+  if(modoCriar){
+    if(document.getElementById('lgPin2').value!==pin) return erroLogin('Os dois PINs não são iguais.');
+    btn.textContent='Criando...';
+    firebase.auth().createUserWithEmailAndPassword(em,senhaDoPin(pin))
+      .then(()=>{guardar('email',em);guardar('jaUsou','1')})
+      .catch(e=>{erroLogin(traduzErro(e));btn.textContent='Criar minha conta'});
+    return;
+  }
+  btn.textContent='Entrando...';
+  firebase.auth().signInWithEmailAndPassword(em,senhaDoPin(pin))
+    .then(()=>{guardar('email',em);guardar('jaUsou','1')})
+    .catch(e=>{erroLogin(traduzErro(e));btn.textContent='Entrar'});
 }
 function sair(){
-  if(confirm('Sair da sua conta neste aparelho?')) firebase.auth().signOut().then(()=>location.reload());
+  if(confirm('Sair da sua conta neste aparelho? Você vai precisar do e-mail e do PIN para voltar.'))
+    firebase.auth().signOut().then(()=>{esquecer('bio');location.reload()});
+}
+
+/* ================= biometria (rosto ou digital do aparelho) ================= */
+const temBiometria=()=>!!(window.PublicKeyCredential&&navigator.credentials&&location.protocol==='https:');
+const bioLigada=()=>!!lembrar('bio');
+const b64=buf=>btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+const deB64=t=>{const b=atob(t.replace(/-/g,'+').replace(/_/g,'/'));return Uint8Array.from(b,c=>c.charCodeAt(0))};
+
+function ativarBiometria(){
+  if(!temBiometria()) return aviso('Este aparelho ou navegador não oferece desbloqueio por biometria.');
+  const u=firebase.auth().currentUser; if(!u) return;
+  const idUsuario=new TextEncoder().encode(u.uid);
+  navigator.credentials.create({publicKey:{
+    challenge:crypto.getRandomValues(new Uint8Array(32)),
+    rp:{name:'Balanço'},
+    user:{id:idUsuario,name:u.email,displayName:u.email},
+    pubKeyCredParams:[{type:'public-key',alg:-7},{type:'public-key',alg:-257}],
+    authenticatorSelection:{authenticatorAttachment:'platform',userVerification:'required',residentKey:'preferred'},
+    timeout:60000, attestation:'none'
+  }}).then(c=>{
+    guardar('bio',b64(c.rawId));
+    pintarAjustes(); aviso('Pronto. Da próxima vez o app abre com seu rosto ou digital.');
+  }).catch(()=>aviso('Não foi possível ativar agora. Confira se o desbloqueio do aparelho está configurado.'));
+}
+function desligarBiometria(){
+  esquecer('bio'); pintarAjustes(); aviso('Desbloqueio por biometria desligado.');
+}
+function mostrarTrava(){
+  document.getElementById('trava').classList.remove('oculto');
+  document.getElementById('app').classList.add('oculto');
+  setTimeout(desbloquear,350);
+}
+function desbloquear(){
+  erroLogin('','travaErro');
+  const id=lembrar('bio');
+  if(!id) return liberarTrava();
+  navigator.credentials.get({publicKey:{
+    challenge:crypto.getRandomValues(new Uint8Array(32)),
+    allowCredentials:[{type:'public-key',id:deB64(id)}],
+    userVerification:'required', timeout:60000
+  }}).then(()=>liberarTrava())
+    .catch(()=>erroLogin('Não reconheci. Tente de novo ou use seu PIN.','travaErro'));
+}
+function liberarTrava(){
+  document.getElementById('trava').classList.add('oculto');
+  document.getElementById('app').classList.remove('oculto');
+}
+function travaPorPin(){
+  const box=document.getElementById('boxTravaPin');
+  box.classList.remove('oculto');
+  const c=document.getElementById('tvPin'); c.focus();
+  c.oninput=()=>{
+    if(!soDigitos(c.value)) return;
+    const u=firebase.auth().currentUser; if(!u) return location.reload();
+    const cred=firebase.auth.EmailAuthProvider.credential(u.email,senhaDoPin(c.value));
+    u.reauthenticateWithCredential(cred).then(()=>{c.value='';box.classList.add('oculto');liberarTrava()})
+      .catch(()=>{c.value='';erroLogin('PIN incorreto.','travaErro')});
+  };
+}
+function trocarPin(){
+  const u=firebase.auth().currentUser; if(!u) return;
+  abrirModal('Trocar meu PIN',`
+    <div class="campo"><label>PIN atual</label><input id="pnA" class="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>
+    <div class="campo"><label>PIN novo</label><input id="pnB" class="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>
+    <div class="campo"><label>Repita o PIN novo</label><input id="pnC" class="pin" type="password" inputmode="numeric" maxlength="4" placeholder="••••"></div>`,
+  ()=>{
+    const a=val('pnA'),b=val('pnB'),c=val('pnC');
+    if(!soDigitos(a)||!soDigitos(b)) return aviso('Os PINs precisam ter 4 números.');
+    if(b!==c) return aviso('Os dois PINs novos não são iguais.');
+    const cred=firebase.auth.EmailAuthProvider.credential(u.email,senhaDoPin(a));
+    u.reauthenticateWithCredential(cred)
+      .then(()=>u.updatePassword(senhaDoPin(b)))
+      .then(()=>{fecharModal();aviso('PIN trocado. Use o novo da próxima vez.')})
+      .catch(e=>aviso(traduzErro(e)));
+  });
 }
 
 function aplicar(d){
@@ -504,17 +648,19 @@ function ligarFirebase(){
   firebase.auth().onAuthStateChanged(u=>{
     if(!u){
       document.getElementById('app').classList.add('oculto');
+      document.getElementById('trava').classList.add('oculto');
       document.getElementById('login').classList.remove('oculto');
-      document.getElementById('lgBtn').textContent='Entrar';
+      prepararLogin();
       return;
     }
     uid=u.uid;
     db.ref(RAIZ+'/'+uid).on('value',snap=>{
       const d=snap.val();
-      if(!d){ if(!pronto){pronto=true;iniciarApp()} salvarTudo(); return; }
+      if(!d){ if(!pronto){pronto=true;iniciarApp();if(bioLigada())mostrarTrava()} salvarTudo(); return; }
       if(d.carimbo===carimbo){ estado('sincronizado'); return; }
       aplicar(d);
       if(!pronto){pronto=true;iniciarApp()} else pintarTudo();
+      if(bioLigada()) mostrarTrava();
       estado('sincronizado');
     },()=>estado('sem acesso ao banco',true));
     db.ref('.info/connected').on('value',s=>{ if(!s.val()) estado('sem conexão',true) });
@@ -1093,6 +1239,20 @@ function pintarAjustes(){
   document.getElementById('ajConta').textContent=u
     ?'Conectada como '+u+'. Seus dados ficam salvos na nuvem e aparecem igual no celular e no computador.'
     :'Sem conta conectada: os dados desta tela são fictícios, só para demonstração.';
+  document.getElementById('cardSeguranca').classList.toggle('oculto',MODO_DEMO);
+  if(!MODO_DEMO){
+    const bio=bioLigada(), pode=temBiometria();
+    document.getElementById('ajSeguranca').innerHTML=`
+      <div class="seg">
+        <div class="item-txt"><b>Desbloqueio por rosto ou digital</b>
+          <small>${pode?(bio?'Ligado neste aparelho. O app pede biometria ao abrir.':'Usa o mesmo desbloqueio do seu celular. Precisa ser ligado em cada aparelho.'):'Este aparelho ou navegador não oferece esse recurso.'}</small></div>
+        ${pode?`<button class="btn ${bio?'fantasma':''} mini" onclick="${bio?'desligarBiometria()':'ativarBiometria()'}">${bio?'Desligar':'Ativar'}</button>`:''}
+      </div>
+      <div class="seg">
+        <div class="item-txt"><b>Meu PIN</b><small>Quatro números, usados para entrar e para destravar o app.</small></div>
+        <button class="btn fantasma mini" onclick="trocarPin()">Trocar PIN</button>
+      </div>`;
+  }
   document.getElementById('ajHistorico').innerHTML=HISTORICO.map(x=>`
     <div class="mudanca">
       <h4>v${x.v}</h4><time>${x.data.split('-').reverse().join('/')}</time>
@@ -1358,7 +1518,10 @@ if('serviceWorker' in navigator&&location.protocol==='https:'){
   });
 }
 if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',ligarFirebase); else ligarFirebase();
-['lgEmail','lgSenha'].forEach(id=>{const e=document.getElementById(id);if(e)e.addEventListener('keydown',ev=>{if(ev.key==='Enter')entrar()})});
+['lgEmail','lgPin','lgPin2'].forEach(id=>{const e=document.getElementById(id);if(e){
+  e.addEventListener('keydown',ev=>{if(ev.key==='Enter')entrar()});
+  if(id!=='lgEmail') e.addEventListener('input',()=>{e.value=e.value.replace(/[^0-9]/g,'')});
+}});
 
 function iniciarApp(){
   const sv=document.getElementById('seloVersao'); if(sv) sv.textContent='v'+VERSAO;
