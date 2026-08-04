@@ -1,0 +1,17 @@
+{
+  "name": "Balanço — controle financeiro",
+  "short_name": "Balanço",
+  "description": "Controle de gastos, recebimentos, contas a pagar, cartão e dívidas.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#E9EDF2",
+  "theme_color": "#14203A",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icone-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
