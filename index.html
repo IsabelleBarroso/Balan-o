@@ -104,7 +104,7 @@ input,select{font-family:inherit;font-size:inherit;color:inherit}
 .tit{font-family:var(--display);font-size:17px;font-weight:500;letter-spacing:-.01em;margin:0}
 .olho{font-family:var(--corpo);font-size:10.5px;letter-spacing:.17em;text-transform:uppercase;color:var(--tinta-40);font-weight:600;margin:0 0 8px}
 .nota{font-size:12.5px;color:var(--tinta-40);margin:8px 0 0}
-.balanca{background:var(--papel);border:1px solid var(--linha);border-radius:var(--raio);padding:15px 15px 4px;margin-bottom:11px;overflow:hidden}
+.balanca{background:var(--papel);border:1px solid var(--linha);border-radius:var(--raio);padding:14px 15px 4px;margin:0 0 11px;overflow:hidden}
 .saldo-linha{display:flex;align-items:flex-end;justify-content:space-between;gap:14px;flex-wrap:wrap}
 .saldo-num{font-family:var(--display);font-weight:500;font-size:32px;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .saldo-leg{font-size:12.5px;color:var(--tinta-40);max-width:290px}
@@ -123,7 +123,7 @@ input,select{font-family:inherit;font-size:inherit;color:inherit}
 .leg b{font-family:var(--display);font-weight:500;font-size:13.5px;font-variant-numeric:tabular-nums}
 .leg em{font-family:var(--corpo);font-style:normal;color:var(--tinta-40);font-size:11.5px;width:46px;text-align:right;font-variant-numeric:tabular-nums}
 svg text{font-family:var(--corpo);font-variant-numeric:tabular-nums}
-.chips{display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px}
+.chips{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 13px}
 .chip{border:1px solid var(--linha);background:var(--papel);color:var(--tinta-70);border-radius:99px;
   padding:7px 15px;font-size:12.5px;font-weight:600;white-space:nowrap}
 .chip.on{background:var(--realce);border-color:var(--realce);color:var(--realce-txt)}
@@ -281,7 +281,6 @@ svg text{font-family:var(--corpo);font-variant-numeric:tabular-nums}
   <!-- RESUMO -->
   <section id="tela-resumo">
     <div class="chips" id="chipsResumo"></div>
-    </div>
     <div class="balanca">
       <p class="olho" id="olhoMes"></p>
       <div class="saldo-linha">
@@ -504,8 +503,11 @@ svg text{font-family:var(--corpo);font-variant-numeric:tabular-nums}
 
 <script>
 /* ================= versão ================= */
-const VERSAO='1.8.0';
+const VERSAO='1.8.1';
 const HISTORICO=[
+  {v:'1.8.1', data:'2026-08-05', itens:[
+    'Corrigido o Resumo, que estava com a estrutura quebrada e sobrepunha o nome do mês.'
+  ]},
   {v:'1.8.0', data:'2026-08-05', itens:[
     'Sem login: o app abre direto, sem e-mail nem PIN.',
     'Os dados continuam guardados na nuvem, ligados a este aparelho.'
