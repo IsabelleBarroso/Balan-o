@@ -160,7 +160,11 @@ svg text{font-family:var(--corpo);font-variant-numeric:tabular-nums}
 .mesnav button{border:1px solid var(--linha);background:var(--papel);width:36px;height:36px;border-radius:10px;font-size:16px;box-shadow:var(--sombra)}
 .mesnav button:hover{background:var(--realce);color:var(--realce-txt);border-color:var(--realce)}
 .mesnav b{font-family:var(--display);font-size:18px;font-weight:500;min-width:170px;text-align:center}
-.dia{width:44px;flex:none;text-align:center;border-right:1px solid var(--linha);padding-right:8px}
+.marcar{width:26px;height:26px;flex:none;border:2px solid var(--linha);background:transparent;
+  border-radius:50%;display:grid;place-items:center;font-size:13px;font-weight:700;color:transparent;padding:0}
+.marcar:hover{border-color:var(--entrada)}
+.marcar.on{background:var(--entrada);border-color:var(--entrada);color:#fff}
+.dia{width:40px;flex:none;text-align:center;border-right:1px solid var(--linha);padding-right:8px}
 .dia b{display:block;font-family:var(--display);font-size:18px;font-weight:500;line-height:1.1;font-variant-numeric:tabular-nums}
 .dia small{font-family:var(--corpo);font-size:9.5px;color:var(--tinta-40);text-transform:uppercase;letter-spacing:.12em;font-weight:600}
 .pago .item-txt b,.pago .valor{opacity:.5}
@@ -168,12 +172,18 @@ svg text{font-family:var(--corpo);font-variant-numeric:tabular-nums}
 .faixa{display:flex;height:9px;border-radius:99px;overflow:hidden;background:var(--sutil);margin:2px 0 10px}
 .faixa i{display:block;height:100%}
 /* cartão */
-.plastico{background:linear-gradient(135deg,#2C5AA0 0%,#1B3C73 62%,#14203A 100%);color:#fff;border-radius:var(--raio);padding:18px;box-shadow:var(--sombra);margin-bottom:14px}
-.plastico .olho{color:rgba(255,255,255,.55)}
-.fatura-nav{display:flex;align-items:center;gap:10px;margin-bottom:10px;flex-wrap:wrap}
-.fatura-nav button{background:rgba(255,255,255,.12);border:0;color:#fff;width:30px;height:30px;border-radius:8px}
-.fatura-nav button:hover{background:rgba(255,255,255,.24)}
-.fatura-nav b{font-family:var(--display);font-size:17px;font-weight:600}
+.plastico{background:linear-gradient(150deg,#1D4A3E 0%,#15382F 60%,#0E2A23 100%);color:#F2EEE4;
+  border-radius:var(--raio);padding:15px;margin-bottom:11px}
+.plastico .olho{color:rgba(242,238,228,.55)}
+.fatura-nav{display:flex;align-items:center;gap:8px;margin-bottom:12px;
+  background:rgba(242,238,228,.10);border-radius:12px;padding:5px}
+.fatura-nav button{background:rgba(242,238,228,.14);border:0;color:#F2EEE4;width:38px;height:38px;
+  border-radius:10px;font-size:20px;line-height:1;flex:none}
+.fatura-nav button:hover{background:rgba(242,238,228,.30)}
+.fatura-nav b{font-family:var(--display);font-size:17px;font-weight:500;flex:1;text-align:center}
+.hoje-btn{background:none;border:1px solid rgba(242,238,228,.35);color:#F2EEE4;border-radius:99px;
+  padding:5px 12px;font-size:11.5px;font-weight:600;margin-left:6px}
+.hoje-btn:hover{background:rgba(242,238,228,.16)}
 .fatura-num{font-family:var(--display);font-size:30px;font-weight:500;letter-spacing:-.02em;font-variant-numeric:tabular-nums}
 .fatura-info{display:flex;gap:16px;flex-wrap:wrap;font-size:12.5px;color:rgba(255,255,255,.7);margin-top:4px}
 .limite{height:6px;border-radius:99px;background:rgba(255,255,255,.18);overflow:hidden;margin:14px 0 6px}
@@ -350,6 +360,7 @@ svg text{font-family:var(--corpo);font-variant-numeric:tabular-nums}
       <div class="faixa" id="agFaixa"></div>
       <div id="agLista"></div>
       <p class="nota" id="agNota"></p>
+      <p class="nota">Toque na bolinha à esquerda para marcar como paga ou voltar para pendente.</p>
     </div>
   </section>
 
@@ -385,7 +396,10 @@ svg text{font-family:var(--corpo);font-variant-numeric:tabular-nums}
         <button onclick="andarFatura(-1)" aria-label="Fatura anterior">‹</button>
         <b id="fatTitulo"></b>
         <button onclick="andarFatura(1)" aria-label="Próxima fatura">›</button>
-        <span class="selo" style="background:rgba(255,255,255,.14);border-color:transparent;color:#fff" id="fatStatus"></span>
+      </div>
+      <div class="fatura-info" style="margin:0 0 8px">
+        <span class="selo" style="background:rgba(242,238,228,.16);border-color:transparent;color:#F2EEE4" id="fatStatus"></span>
+        <span id="fatVoltar"></span>
       </div>
       <div class="fatura-num" id="fatValor">R$ 0</div>
       <div class="fatura-info" id="fatInfo"></div>
@@ -393,10 +407,10 @@ svg text{font-family:var(--corpo);font-variant-numeric:tabular-nums}
       <div class="fatura-info" id="fatLimiteTxt"></div>
     </div>
     <div class="cartao">
-      <div class="cab"><h2 class="tit">Compras desta fatura</h2>
-        <button class="btn mini fantasma" onclick="abrirLanc(null,'cartao')">+ Lançar no cartão</button></div>
+      <div class="cab"><h2 class="tit" id="tituloFatura">Compras desta fatura</h2>
+        <span class="selo" id="seloFatura"></span></div>
       <div id="listaFatura"></div>
-      <p class="nota">A fatura não vira um lançamento novo: cada compra já foi contada no mês dela. Aqui você vê só o que o Banco do Brasil vai cobrar.</p>
+      <p class="nota" id="notaFatura"></p>
     </div>
     <div class="cartao">
       <div class="cab"><h2 class="tit">Faturas que já estão comprometidas</h2></div>
@@ -514,8 +528,17 @@ svg text{font-family:var(--corpo);font-variant-numeric:tabular-nums}
 
 <script>
 /* ================= versão ================= */
-const VERSAO='1.11.1';
+const VERSAO='1.13.0';
 const HISTORICO=[
+  {v:'1.13.0', data:'2026-08-05', itens:[
+    'Cada conta da aba A pagar tem uma bolinha para marcar como paga ou pendente, inclusive nos meses futuros.',
+    'A marcação manual vale mais que o cálculo por data: se o banco atrasou, é você quem diz.'
+  ]},
+  {v:'1.12.0', data:'2026-08-05', itens:[
+    'Navegação entre faturas bem mais visível, com botões grandes e atalho para voltar à fatura atual.',
+    'A lista mostra de qual mês são as compras que você está vendo.',
+    'Cartão passou para a paleta verde, que tinha ficado de fora.'
+  ]},
   {v:'1.11.0', data:'2026-08-05', itens:[
     'Poupanças com valor mensal aparecem na aba A pagar como compromisso do mês, com botão para guardar.',
     'Guardar continua não contando como gasto: entra no que sai da conta, não no que você consumiu.',
@@ -664,10 +687,11 @@ function aplicar(d){
   recorrentes=Array.isArray(d.recorrentes)?d.recorrentes:[];
   metas=Array.isArray(d.metas)?d.metas:[];
   plano=Object.assign({tetoMes:0,tetoCartao:0,regime:'fatura'},d.plano||{});
+  marcado=(d.marcado&&typeof d.marcado==='object')?d.marcado:{};
   if(d.seq&&d.seq>seq) seq=d.seq;
 }
 function empacotar(){
-  return {contas,categorias,lancamentos,dividas:dividasManuais,recorrentes,metas,plano,seq,carimbo,em:Date.now()};
+  return {contas,categorias,lancamentos,dividas:dividasManuais,recorrentes,metas,plano,marcado,seq,carimbo,em:Date.now()};
 }
 function salvarTudo(){
   if(MODO_DEMO||!db||!uid) return;
@@ -757,6 +781,7 @@ function criarParcelamento({desc,total,n,cat,dataISO,origem,meio}){
 
 let dividasManuais=[], recorrentes=[], metas=[];
 let plano={tetoMes:0,tetoCartao:0,regime:'fatura'};
+let marcado={};   /* o que você marcou como pago ou pendente na mão */
 
 const PADRAO_CONTAS=[
   {id:'o1',nome:'Conta corrente BB',tipo:'conta',icone:'🏦',cor:'#14203A'},
@@ -1096,7 +1121,8 @@ function agendaDoMes(ch){
     if(f.previsto>0) partes.push(plural(f.qtd,'assinatura')+' prevista'+(f.qtd>1?'s':''));
     if(ref>faturaAtualDe(c.id)) partes.push('ainda sem os gastos do dia a dia');
     itens.push({dia:c.vencimento,nome:'Fatura '+c.nome,sub:partes.join(' · '),
-      valor:f.tot,cor:c.cor,icone:c.icone,etiq:'cartão',pago:vencISO<hojeISO,fatura:ref,cartao:c.id});
+      valor:f.tot,cor:c.cor,icone:c.icone,etiq:'cartão',pago:vencISO<hojeISO,fatura:ref,cartao:c.id,
+      chave:ch+'|fatura:'+c.id});
   });
 
   /* 2. o que já está lançado fora do cartão */
@@ -1104,14 +1130,15 @@ function agendaDoMes(ch){
     doMes(ch).filter(l=>l.tipo==='saida'&&!ehCartao(l.origem)).forEach(l=>{
       const k=cat(l.cat);
       itens.push({dia:+l.data.slice(8,10),nome:l.desc,sub:`${k.nome} · ${conta(l.origem).icone} ${conta(l.origem).nome}`,
-        valor:l.valor,cor:k.cor,icone:k.icone,pago:l.data<=hojeISO,lanc:l.id});
+        valor:l.valor,cor:k.cor,icone:k.icone,pago:l.data<=hojeISO,lanc:l.id,chave:ch+'|lanc:'+l.id});
     });
   } else {
     /* mês futuro: projeta as recorrências que não passam pelo cartão */
     recorrentes.filter(r=>r.ativo&&!ehCartao(r.origem)&&r.freq!=='Anual').forEach(r=>{
       const k=cat(r.cat), vezes=r.freq==='Quinzenal'?2:r.freq==='Semanal'?4:1, salto=r.freq==='Semanal'?7:15;
       for(let i=0;i<vezes;i++) itens.push({dia:Math.min(28,r.dia+i*salto),nome:r.nome,
-        sub:`${k.nome} · recorrente`,valor:r.valor,cor:k.cor,icone:k.icone,etiq:'previsto',pago:false});
+        sub:`${k.nome} · recorrente`,valor:r.valor,cor:k.cor,icone:k.icone,etiq:'previsto',pago:false,
+        chave:ch+'|rec:'+r.id+':'+i});
     });
   }
 
@@ -1121,7 +1148,7 @@ function agendaDoMes(ch){
     const jaGuardou=(m.aportes||[]).some(x=>chaveMes(x.data)===ch&&x.valor>0);
     itens.push({dia:m.dia||5,nome:'Guardar — '+m.nome,sub:'poupança',valor:m.mensal,
       cor:m.cor||'#2E7D52',icone:m.icone||'🎯',etiq:futuro?'previsto':'poupança',
-      pago:jaGuardou,meta:futuro?null:m.id});
+      pago:jaGuardou,meta:futuro?null:m.id,chave:ch+'|meta:'+m.id});
   });
 
   /* 4. parcelas de empréstimo e financiamento (fora do cartão) */
@@ -1137,9 +1164,12 @@ function agendaDoMes(ch){
     if(idx>d.total_p) return;
     if(!d.parcela) return;                          /* dívida sem parcela fixa */
     itens.push({dia:d.dia,nome:d.nome,sub:[`parcela ${idx} de ${d.total_p}`,d.taxa].filter(Boolean).join(' · '),
-      valor:d.parcela,cor:'#9B5C2E',icone:'🧾',etiq:futuro?'previsto':'',pago:false,divida:futuro?null:d.id});
+      valor:d.parcela,cor:'#9B5C2E',icone:'🧾',etiq:futuro?'previsto':'',pago:false,divida:futuro?null:d.id,
+      chave:ch+'|div:'+d.id});
   });
 
+  /* o que você marcou à mão vale mais que o cálculo automático */
+  itens.forEach(i=>{ if(i.chave&&Object.prototype.hasOwnProperty.call(marcado,i.chave)) i.pago=!!marcado[i.chave]; });
   return itens.sort((a,b)=>a.dia-b.dia||b.valor-a.valor);
 }
 function mesesEntre(a,b){return (+b.slice(0,4)-+a.slice(0,4))*12+(+b.slice(5,7)-+a.slice(5,7))}
@@ -1159,6 +1189,11 @@ function entradasDoMes(ch){
   }).sort((a,b)=>a.dia-b.dia);
 }
 
+function alternarPago(chave,estava){
+  marcado[chave]=!estava;
+  atualizar();
+  aviso(!estava?'Marcado como pago.':'Voltou para pendente.');
+}
 function pintarAgenda(){
   const ch=mesAgenda, itens=agendaDoMes(ch);
   const total=itens.reduce((s,i)=>s+i.valor,0);
@@ -1184,17 +1219,17 @@ function pintarAgenda(){
   document.getElementById('agFaixa').innerHTML=
     `<i style="width:${total?pago/total*100:0}%;background:var(--entrada)"></i><i style="width:${total?falta/total*100:0}%;background:var(--saida)"></i>`;
 
-  document.getElementById('agLista').innerHTML=itens.length?itens.map((i,ix)=>`
+  document.getElementById('agLista').innerHTML=itens.length?itens.map(i=>`
     <div class="item ${i.pago?'pago':''}">
+      <button class="marcar ${i.pago?'on':''}" onclick="alternarPago('${i.chave}',${i.pago})"
+        title="${i.pago?'Marcar como pendente':'Marcar como pago'}">${i.pago?'✓':''}</button>
       <div class="dia"><b>${String(i.dia).padStart(2,'0')}</b><small>${MESES[+ch.slice(5,7)-1]}</small></div>
-      <div class="pin" style="background:${i.cor}1a">${i.icone}</div>
-      <div class="item-txt"><b>${i.nome}${i.etiq?`<span class="tag ${i.etiq==='cartão'?'px':''}">${i.etiq}</span>`:''}${i.pago?'<span class="tag ok">pago</span>':''}</b>
+      <div class="item-txt"><b>${i.icone} ${i.nome}${i.etiq&&!i.pago?`<span class="tag ${i.etiq==='cartão'?'px':''}">${i.etiq}</span>`:''}${i.pago?'<span class="tag ok">pago</span>':''}</b>
         <small>${i.sub}</small></div>
       <div class="valor ${i.pago?'':'v-saida'}">${brl(i.valor)}</div>
       <div class="acoes">
-        ${i.fatura?`<button class="ic" title="Ver compras da fatura" onclick="verFatura('${i.fatura}','${i.cartao}')">👁</button>`:''}
-        ${(!i.pago&&i.divida)?`<button class="btn fantasma mini" onclick="pagarParcela('${i.divida}')">Pagar</button>`:''}
-        ${(!i.pago&&i.meta)?`<button class="btn fantasma mini" onclick="movimentarMeta('${i.meta}',1)">Guardar</button>`:''}
+        ${i.fatura?`<button class="ic" title="Ver as compras" onclick="verFatura('${i.fatura}','${i.cartao}')">👁</button>`:''}
+        ${(!i.pago&&i.meta)?`<button class="ic" title="Guardar agora" onclick="movimentarMeta('${i.meta}',1)">＋</button>`:''}
       </div></div>`).join('')
     :'<div class="vazio">Nada vencendo neste mês.</div>';
 
@@ -1334,7 +1369,8 @@ function pintarLanc(){
 
 /* ================= cartão ================= */
 let faturaVista=null;
-function andarFatura(k){faturaVista=proxMes(faturaVista,k);pintarCartao()}
+function andarFatura(k){faturaVista=proxMes(faturaVista,k);pintarCartao();pintarCabecalho()}
+function voltarFaturaAtual(){const c=cartaoAtivo();if(c){faturaVista=faturaAtualDe(c.id);pintarCartao();pintarCabecalho()}}
 function trocarCartao(id){cartaoSel=id;faturaVista=faturaAtualDe(id);pintarCartao()}
 function pintarCartao(){
   const c=cartaoAtivo();
@@ -1346,10 +1382,14 @@ function pintarCartao(){
   if(!faturaVista) faturaVista=faturaAtual;
   document.getElementById('cabCartao').innerHTML=
     `${cartoes().length>1?cartoes().map(x=>`<button class="ic ${x.id===c.id?'on':''}" style="width:auto;padding:0 10px;border:0;background:rgba(255,255,255,${x.id===c.id?'.24':'.10'});color:#fff" onclick="trocarCartao('${x.id}')">${x.icone} ${x.nome}</button>`).join(' '):`${c.icone} ${c.nome}`} · fecha dia ${c.fechamento} · vence dia ${c.vencimento}`;
-  const ls=daFatura(faturaVista,c.id).sort((a,b)=>a.data.localeCompare(b.data)),total=somaVal(ls);
+  const ls=daFatura(faturaVista,c.id).sort((a,b)=>a.data.localeCompare(b.data));
+  const proj=totalFatura(faturaVista,c.id);
+  const total=proj.tot;
   document.getElementById('fatTitulo').textContent='Fatura de '+rotuloMes(faturaVista);
   document.getElementById('fatValor').textContent=brl(total);
-  document.getElementById('fatStatus').textContent=faturaVista<faturaAtual?'paga':faturaVista===faturaAtual?'aberta':'futura';
+  document.getElementById('fatStatus').textContent=faturaVista<faturaAtual?'fatura paga':faturaVista===faturaAtual?'fatura aberta':'fatura futura';
+  document.getElementById('fatVoltar').innerHTML=faturaVista!==faturaAtual
+    ? `<button class="hoje-btn" onclick="voltarFaturaAtual()">Voltar para a atual</button>` : '';
   document.getElementById('fatInfo').innerHTML=
     `<span>fecha ${String(c.fechamento).padStart(2,'0')}/${faturaVista.slice(5,7)}</span><span>vence ${vencimentoDa(faturaVista,c.id)}</span><span>${plural(ls.length,'lançamento')}</span>`;
   const lim=c.limite||0;
@@ -1357,10 +1397,13 @@ function pintarCartao(){
   document.getElementById('fatLimiteTxt').innerHTML=lim
     ?`<span>limite de ${brl(lim)} · disponível ${brl(Math.max(0,lim-total))}</span>`
     :`<span>limite não informado — toque em Contas para preencher</span>`;
-  const proj=totalFatura(faturaVista,c.id);
+  document.getElementById('tituloFatura').textContent='Compras de '+rotuloMes(faturaVista);
+  document.getElementById('seloFatura').textContent=plural(ls.length,'lançamento');
   document.getElementById('listaFatura').innerHTML=(ls.length?ls.map(linhaLanc).join(''):'<div class="vazio">Nada lançado nesta fatura ainda.</div>')
     +(proj.previsto>0?`<p class="nota">Somei ${brl(proj.previsto)} de ${plural(proj.qtd,'assinatura')} que se repete${proj.qtd>1?'m':''} neste cartão. Total previsto da fatura: <b>${brl(proj.tot)}</b>.</p>`:'');
 
+  document.getElementById('notaFatura').textContent=
+    `A fatura não vira um lançamento novo: cada compra já foi contada no mês dela. Aqui você vê o que o ${c.nome} vai cobrar no dia ${c.vencimento}.`;
   const fut=[]; for(let i=0;i<6;i++){const ch=proxMes(faturaAtual,i);fut.push({ch,v:totalFatura(ch,c.id).tot})}
   const max=Math.max(...fut.map(f=>f.v))||1,bw=34,passo=(400-40)/6;
   document.getElementById('svgFuturo').innerHTML=fut.map((f,i)=>{
@@ -1675,7 +1718,7 @@ function conferirVersao(silencioso){
 function procurarAtualizacao(){ aviso('Procurando versão nova...'); conferirVersao(false) }
 function baixarBackup(){
   try{
-    const dados={app:'Balanço',versao:VERSAO,em:new Date().toISOString(),contas,categorias,lancamentos,dividas:dividasManuais,recorrentes,metas,plano};
+    const dados={app:'Balanço',versao:VERSAO,em:new Date().toISOString(),contas,categorias,lancamentos,dividas:dividasManuais,recorrentes,metas,plano,marcado};
     const a=document.createElement('a');
     a.href=URL.createObjectURL(new Blob([JSON.stringify(dados,null,1)],{type:'application/json'}));
     a.download='balanco-'+hojeISO+'.json'; a.click();
