@@ -279,7 +279,7 @@ const FIREBASE={
 /* Caminho no banco. O trecho aleatório funciona como uma chave:
    sem ele ninguém alcança os dados, mesmo conhecendo o projeto. */
 const SALA="financas/isb-4c7e21a9f3b6";
-const VERSAO="1.3";
+const VERSAO="1.5";
 const CHAVE="minhas-financas-v1";
 /* ========================================================== */
 
@@ -290,6 +290,7 @@ const COR_FORMA={credito:'#B4566A',debito:'#1D4A3E',pix:'#BE8724',dinheiro:'#6E7
 
 function estadoPadrao(){ return {
   atualizadoEm:0,
+  inicioUso:'2026-08',
   renda:5900, contribParceiro:0, sobraDesejada:0,
   cartao:{nome:'Cartão BB',fechamento:26,vencimento:8,limite:9497},
   tetosCat:{'Mercado':500,'Transporte':150,'Saúde e academia':150,'Cuidados':150,'Compras e casa':150,'Alimentação fora':200},
@@ -513,6 +514,7 @@ const totalDevidoCartao=()=>parcelasAbertas().reduce((s,x)=>s+x.valor,0);
 const totalDevido=()=>totalDevidoEmprestimos()+totalDevidoCartao();
 
 function pesoDividaMes(k){
+  if(antesDoInicio(k))return 0;
   let t=0;
   D.dividas.forEach(d=>parcelasDivida(d).forEach(p=>{if(p.k===k)t+=p.valor;}));
   todasParcelas().forEach(p=>{if(p.k===k)t+=p.valor;});
@@ -525,7 +527,9 @@ function ultimoMesComDivida(){
   return u;
 }
 
+const antesDoInicio=k=>!!(D.inicioUso)&&k<D.inicioUso;
 function itensDoMes(k){
+  if(antesDoInicio(k))return [];
   const out=[];
   D.gastos.forEach(g=>{
     if(!g.parcelado){
@@ -550,6 +554,7 @@ function itensDoMes(k){
 const fluxoMes=k=>itensDoMes(k).reduce((s,i)=>s+i.valor,0);
 
 function itensGanhoMes(k){
+  if(antesDoInicio(k))return [];
   const out=[];
   (D.ganhos||[]).forEach(g=>{
     if(!g.repete){if(cicloISO(g.data)===k)out.push({g,valor:g.valor,fonte:g.fonte});}
@@ -564,7 +569,7 @@ function itensGanhoMes(k){
   });
   return out;
 }
-const entradasMes=k=>itensGanhoMes(k).reduce((s,i)=>s+i.valor,0)+(D.contribParceiro||0);
+const entradasMes=k=>antesDoInicio(k)?0:itensGanhoMes(k).reduce((s,i)=>s+i.valor,0)+(D.contribParceiro||0);
 const mesesDoAno=a=>{const r=[];for(let m=1;m<=12;m++)r.push(chaveDe(a,m));return r;};
 function agregaAno(a,fn,campo){
   const tot={},mensal={};
@@ -589,6 +594,7 @@ const comprasCartao=k=>itensDoMes(k).filter(i=>ehCartao(i)&&i.tipo==='vista').re
 const faturaMes=k=>itensDoMes(k).filter(ehCartao).reduce((s,i)=>s+i.valor,0);
 const faturaComprometida=k=>assinaturasCartao(k)+parcelasCartaoMes(k);
 const rendaBase=()=>(D.renda||0)+(D.contribParceiro||0);
+const dispMes=k=>antesDoInicio(k)?0:disponivel(k);
 const disponivel=k=>Math.max(rendaBase()-compromissosFora(k)-aportesMes(k)-(D.sobraDesejada||0),0);
 const usado=k=>faturaMes(k)+foraCartao(k);
 const livre=k=>disponivel(k)-usado(k);
@@ -635,7 +641,7 @@ const fechamentoDe=k=>(D.fechamentos||{})[k];
 const salarioRecebido=k=>{const f=fechamentoDe(k);return f&&f.salario!==undefined?f.salario:null;};
 const saiuNoMes=k=>usado(k)+compromissosFora(k)+aportesMes(k);
 const sobraDoMes=k=>(salarioRecebido(k)!==null?salarioRecebido(k):rendaBase())-saiuNoMes(k);
-const acertoPendente=k=>mesFechado(k)&&!(fechamentoDe(k)&&fechamentoDe(k).destino);
+const acertoPendente=k=>!antesDoInicio(k)&&mesFechado(k)&&!(fechamentoDe(k)&&fechamentoDe(k).destino);
 
 function cartaoFechamento(k){
   const f=fechamentoDe(k)||{};
@@ -917,7 +923,7 @@ function grafDividas(){
 }
 function grafSobras(){
   const kA=cicloAtual(),ks=[];
-  for(let i=11;i>=0;i--){const k=somaMes(kA,-i); if(mesFechado(k))ks.push(k);}
+  for(let i=11;i>=0;i--){const k=somaMes(kA,-i); if(mesFechado(k)&&!antesDoInicio(k))ks.push(k);}
   if(!ks.length)return '<div class="vazio" style="padding:40px 20px">Nenhum mês fechou ainda. O acerto aparece aqui quando o primeiro fechar.</div>';
   const comSal=ks.filter(k=>salarioRecebido(k)!==null);
   const sob=ks.map(sobraDoMes);
@@ -957,7 +963,7 @@ function grafDividasAno(){
   <div class="cartao">
     <div class="topo"><div><span class="rot">Dívidas pagas em ${a}</span><b class="val" style="color:var(--tijolo)">${R$(tot)}</b></div>
       <div style="text-align:right"><span class="rot">média/mês</span><b class="val" style="font-size:16px;color:var(--cinza)">${R$(tot/12)}</b></div></div>
-    ${meses.map((k,mi)=>`<div class="hbar"><div class="l"><span>${MESES[mi]}</span><b>${R$(pesos[mi])}</b></div>
+    ${meses.map((k,mi)=>antesDoInicio(k)?'':`<div class="hbar"><div class="l"><span>${MESES[mi]}</span><b>${R$(pesos[mi])}</b></div>
       <div class="t"><i style="width:${(pesos[mi]/maxP)*100}%;background:var(--tijolo)"></i></div></div>`).join('')}
   </div>`;
 }
@@ -1100,11 +1106,16 @@ function chipsGastos(){
 }
 function navMes(){
   const k=UI.mesRef;
-  return `<div class="navmes"><button onclick="mudarMes(-1)" aria-label="Anterior">‹</button>
+  const trava=D.inicioUso && somaMes(k,-1)<D.inicioUso;
+  return `<div class="navmes"><button onclick="mudarMes(-1)" aria-label="Anterior" ${trava?'disabled style="opacity:.25"':''}>‹</button>
     <div class="cen"><b>${rotuloMes(k)}</b><span>${faixaCiclo(k)} · vence ${dBR(vencCiclo(k))}</span></div>
     <button onclick="mudarMes(1)" aria-label="Próximo">›</button></div>`;
 }
-function mudarMes(n){UI.mesRef=somaMes(UI.mesRef,n);render();}
+function mudarMes(n){
+  const novo=somaMes(UI.mesRef,n);
+  if(D.inicioUso && novo<D.inicioUso) return toast('O controle começa em '+nomeMes(D.inicioUso)+' de '+D.inicioUso.slice(0,4));
+  UI.mesRef=novo;render();
+}
 function mudarAnoGasto(n){const p=UI.mesRef.split('-');UI.mesRef=(+p[0]+n)+'-'+p[1];render();}
 
 function linhaItem(i,k){
@@ -1642,6 +1653,7 @@ function telaGastos(){
       + cartaoResumo(todos,false)
       + `<div class="secao-titulo">Mês a mês</div>`
       + meses.map((k,mi)=>{
+          if(antesDoInicio(k))return'';
           const v=fluxoMes(k);if(!v)return'';
           return `<div class="linha-item" onclick="UI.mesRef='${k}';UI.filtroGasto='mes';render()" style="cursor:pointer">
             <div class="corpo"><div class="nome">${MESES[mi]}</div>
@@ -1714,7 +1726,7 @@ function telaGrafico(){
 }
 function grafMes(){
   const kA=cicloAtual(),chaves=[];
-  for(let i=5;i>=0;i--)chaves.push(somaMes(kA,-i));
+  for(let i=5;i>=0;i--){const k=somaMes(kA,-i); if(!antesDoInicio(k))chaves.push(k);}
   const ents=chaves.map(entradasMes),sais=chaves.map(fluxoMes);
   const maxV=Math.max.apply(null,ents.concat(sais).concat([1]));
   const W=340,bw=13,esp=4,grupo=bw*2+esp,gap=(W-6*grupo)/7;
@@ -1808,6 +1820,10 @@ function abrirAjustes(){
     <div class="cartao">
       <div class="campo"><label>Renda esperada por mês</label><input id="aRenda" type="number" inputmode="decimal" value="${D.renda||''}"></div>
       <div class="campo"><label>Contribuição do parceiro</label><input id="aParc" type="number" inputmode="decimal" value="${D.contribParceiro||''}" placeholder="deixe vazio se não entra"></div>
+      <div class="campo"><label>Controle começa em</label>
+        <input id="aInicio" type="month" value="${D.inicioUso||''}"></div>
+      <div style="font-size:11.5px;color:var(--cinza);margin-bottom:12px;line-height:1.5">
+        Nada antes desse mês é contado nem exibido. O passado fica para trás.</div>
       <div class="campo"><label>Quero que sobre no fim do mês</label>
         <input id="aSobra" type="number" inputmode="decimal" value="${D.sobraDesejada||''}" placeholder="deixe vazio para não reservar nada"></div>
       <div style="font-size:11.5px;color:var(--cinza);margin-bottom:12px;line-height:1.5">
@@ -1845,6 +1861,8 @@ function salvarAjustes(){
   D.renda=+document.getElementById('aRenda').value||0;
   D.contribParceiro=+document.getElementById('aParc').value||0;
   D.sobraDesejada=+document.getElementById('aSobra').value||0;
+  D.inicioUso=document.getElementById('aInicio').value||'';
+  if(UI.mesRef<D.inicioUso)UI.mesRef=cicloAtual();
   salvar();render();fecharAjustes();toast('Ajustes salvos');
 }
 function salvarCartao(){
