@@ -279,7 +279,7 @@ const FIREBASE={
 /* Caminho no banco. O trecho aleatório funciona como uma chave:
    sem ele ninguém alcança os dados, mesmo conhecendo o projeto. */
 const SALA="financas/isb-4c7e21a9f3b6";
-const VERSAO="1.2";
+const VERSAO="1.3";
 const CHAVE="minhas-financas-v1";
 /* ========================================================== */
 
@@ -344,7 +344,7 @@ function estadoPadrao(){ return {
     {id:81,nome:'Casal',meta:0,aporte:250,saldo:711.41,ate:'2026-12'},
     {id:80,nome:'Escritório',meta:0,aporte:250,saldo:1377.03,ate:'2026-12'}
   ],
-  parcelasPagas:[],aportesFeitos:[]
+  parcelasPagas:[],aportesFeitos:[],fechamentos:{}
 };}
 let D=estadoPadrao();
 
@@ -627,6 +627,122 @@ function cartaoPlano(k){
     </div></div>`;
 }
 
+/* ---- ACERTO DO MÊS ----
+   O mês fecha, mas a conta só é fechada quando o salário cai e você o registra.
+   Aí o app usa o valor real recebido para calcular a sobra. */
+const mesFechado=k=>fimCiclo(k)<agora();
+const fechamentoDe=k=>(D.fechamentos||{})[k];
+const salarioRecebido=k=>{const f=fechamentoDe(k);return f&&f.salario!==undefined?f.salario:null;};
+const saiuNoMes=k=>usado(k)+compromissosFora(k)+aportesMes(k);
+const sobraDoMes=k=>(salarioRecebido(k)!==null?salarioRecebido(k):rendaBase())-saiuNoMes(k);
+const acertoPendente=k=>mesFechado(k)&&!(fechamentoDe(k)&&fechamentoDe(k).destino);
+
+function cartaoFechamento(k){
+  const f=fechamentoDe(k)||{};
+  const sal=salarioRecebido(k);
+  const recebido=sal!==null;
+  const decidido=!!f.destino;
+  const saiu=saiuNoMes(k);
+  const sobra=sobraDoMes(k);
+  const pos=sobra>=0;
+  const linha=(r,v,c)=>`<tr><td style="padding:5px 0;${c?'color:'+c:''}">${r}</td>
+    <td style="text-align:right;font-variant-numeric:tabular-nums;${c?'color:'+c:''}">${R$(v)}</td></tr>`;
+
+  const cabeca = recebido
+    ? `<div class="topo" style="margin-bottom:8px">
+        <div><span class="rot">${nomeMes(k)} — ${pos?'sobrou':'faltou'}</span>
+          <b class="val" style="font-size:29px;color:${pos?'var(--verde)':'var(--rosa)'}">${R$(Math.abs(sobra))}</b></div>
+        <div style="text-align:right"><span class="rot">do salário</span>
+          <b class="val" style="font-size:16px;color:var(--cinza)">${sal?((sobra/sal)*100).toFixed(0):0}%</b></div></div>`
+    : `<div class="topo" style="margin-bottom:8px">
+        <div><span class="rot">${nomeMes(k)} fechou</span>
+          <b class="val" style="font-size:26px">${R$(saiu)}</b>
+          <span style="font-size:12px;color:var(--cinza)">a pagar com o próximo salário</span></div></div>`;
+
+  return `<div class="cartao" style="border-left:3px solid ${recebido?(pos?'var(--verde)':'var(--rosa)'):'var(--ouro)'}">
+    ${cabeca}
+    <table style="width:100%;font-size:13px;border-collapse:collapse">
+      ${recebido?linha('Salário recebido em '+dataBR(f.recebidoEm),sal):linha('Salário previsto',rendaBase(),'var(--cinza)')}
+      ${linha('Fatura de '+nomeMes(k)+' (vence '+dBR(vencCiclo(k))+')',faturaMes(k),'var(--cinza)')}
+      ${linha('Débito e Pix',foraCartao(k),'var(--cinza)')}
+      ${linha('Empréstimos',compromissosFora(k),'var(--cinza)')}
+      ${linha('Poupanças',aportesMes(k),'var(--cinza)')}
+      <tr><td style="padding:8px 0 0;border-top:1px solid var(--linha);font-weight:600">${recebido?(pos?'Sobrou':'Faltou'):'Sobraria'}</td>
+        <td style="text-align:right;padding-top:8px;border-top:1px solid var(--linha);font-family:var(--display);font-size:17px;font-variant-numeric:tabular-nums;color:${pos?'var(--tinta)':'var(--rosa)'}">${R$(Math.abs(sobra))}</td></tr>
+    </table>
+
+    ${!recebido ? `<div class="aviso" style="margin:13px 0 0">
+        Assim que o salário cair, registre o valor real. A sobra é calculada em cima dele, não da previsão.</div>
+      <button class="btn ouro" style="margin-top:10px" onclick="registrarSalario('${k}')">Recebi o salário</button>`
+    : decidido ? `<div class="aviso" style="margin:13px 0 0">
+        ${f.destino==='conta'?'Você decidiu deixar em conta.':'Você destinou '+R$(f.valor)+' para '+esc(f.destino)+'.'}
+        <button class="mini-btn" style="margin-top:9px" onclick="desfazerFechamento('${k}')">Desfazer</button></div>`
+    : (sobra>0 ? `<div style="border-top:1px solid var(--linha);margin-top:13px;padding-top:13px">
+        <div class="rot" style="margin-bottom:9px">O que fazer com essa sobra</div>
+        ${(D.poupancas||[]).map(pp=>`<button class="mini-btn" style="width:100%;margin-bottom:7px;text-align:left;padding:11px 13px"
+          onclick="guardarSobra('${k}',${pp.id})">Guardar em ${esc(pp.nome)} <span style="color:var(--cinza);font-weight:400">· hoje ${R$(pp.saldo)}</span></button>`).join('')}
+        ${(D.dividas||[]).filter(d=>!(d.parcela>0)&&(d.saldoAvulso||0)>0).map(d=>`<button class="mini-btn" style="width:100%;margin-bottom:7px;text-align:left;padding:11px 13px"
+          onclick="abaterComSobra('${k}',${d.id})">Abater ${esc(d.nome)} <span style="color:var(--cinza);font-weight:400">· falta ${R$(d.saldoAvulso)}</span></button>`).join('')}
+        <button class="mini-btn fantasma" style="width:100%;padding:11px 13px" onclick="deixarEmConta('${k}')">Deixar em conta</button>
+        <button class="mini-btn fantasma" style="width:100%;padding:11px 13px;margin-top:7px" onclick="registrarSalario('${k}')">Corrigir o valor recebido</button>
+      </div>`
+      : `<div class="aviso rs" style="margin:13px 0 0">O mês fechou no vermelho. Vale olhar o acerto e ver de onde veio.
+         <button class="mini-btn" style="margin-top:9px" onclick="deixarEmConta('${k}')">Entendi, anotar</button></div>`)}
+  </div>`;
+}
+function registrarSalario(k){
+  const atual=salarioRecebido(k);
+  const v=prompt('Quanto caiu na conta?', (atual!==null?atual:rendaBase()).toFixed(2));
+  const n=parseFloat(String(v).replace(',','.'));
+  if(!(n>0))return;
+  D.fechamentos=D.fechamentos||{};
+  const f=D.fechamentos[k]||{};
+  f.salario=n; f.recebidoEm=hojeISO();
+  D.fechamentos[k]=f;
+  salvar();render();
+  const s=sobraDoMes(k);
+  toast(s>=0?'Sobraram '+R$(s):'Faltaram '+R$(Math.abs(s)));
+}
+function guardarSobra(k,id){
+  const p=D.poupancas.find(x=>x.id===id), s=sobraDoMes(k);
+  const v=prompt('Quanto guardar em '+p.nome+'?', s.toFixed(2));
+  const n=parseFloat(String(v).replace(',','.'));
+  if(!(n>0))return;
+  p.saldo+=n;
+  D.fechamentos[k]=Object.assign(D.fechamentos[k]||{},{destino:p.nome,valor:n,em:hojeISO()});
+  salvar();render();toast('Guardado '+R$(n)+' em '+p.nome);
+}
+function abaterComSobra(k,id){
+  const d=D.dividas.find(x=>x.id===id), s=Math.min(sobraDoMes(k),d.saldoAvulso||0);
+  const v=prompt('Quanto abater de '+d.nome+'?', s.toFixed(2));
+  const n=parseFloat(String(v).replace(',','.'));
+  if(!(n>0))return;
+  d.abatimentos=d.abatimentos||[];
+  d.abatimentos.push({data:hojeISO(),valor:n});
+  d.saldoAvulso=Math.max((d.saldoAvulso||0)-n,0);
+  D.fechamentos[k]=Object.assign(D.fechamentos[k]||{},{destino:d.nome,valor:n,em:hojeISO()});
+  salvar();render();toast('Abatido '+R$(n)+' · restam '+R$(d.saldoAvulso));
+}
+function deixarEmConta(k){
+  D.fechamentos=D.fechamentos||{};
+  D.fechamentos[k]=Object.assign(D.fechamentos[k]||{},{destino:'conta',valor:sobraDoMes(k),em:hojeISO()});
+  salvar();render();toast('Anotado');
+}
+function desfazerFechamento(k){
+  const f=(D.fechamentos||{})[k];
+  if(!f||!f.destino)return;
+  if(!confirm('Desfazer a destinação? Se você tinha guardado, o valor volta de onde saiu.'))return;
+  if(f.destino!=='conta'){
+    const p=(D.poupancas||[]).find(x=>x.nome===f.destino);
+    if(p)p.saldo=Math.max(p.saldo-f.valor,0);
+    const d=(D.dividas||[]).find(x=>x.nome===f.destino);
+    if(d){ d.saldoAvulso=(d.saldoAvulso||0)+f.valor;
+      d.abatimentos=(d.abatimentos||[]).filter(x=>!(x.valor===f.valor&&x.data===f.em)); }
+  }
+  delete f.destino; delete f.valor; delete f.em;
+  salvar();render();toast('Desfeito · o salário registrado continua');
+}
+
 /* ---- FATURA DO CARTÃO ---- */
 function cartaoFatura(k){
   const total=faturaMes(k);
@@ -799,6 +915,38 @@ function grafDividas(){
       <span>livre ${R$(D.cartao.limite-cart)}</span></div>
   </div>`;
 }
+function grafSobras(){
+  const kA=cicloAtual(),ks=[];
+  for(let i=11;i>=0;i--){const k=somaMes(kA,-i); if(mesFechado(k))ks.push(k);}
+  if(!ks.length)return '<div class="vazio" style="padding:40px 20px">Nenhum mês fechou ainda. O acerto aparece aqui quando o primeiro fechar.</div>';
+  const comSal=ks.filter(k=>salarioRecebido(k)!==null);
+  const sob=ks.map(sobraDoMes);
+  const total=comSal.reduce((s,k)=>s+sobraDoMes(k),0), media=comSal.length?total/comSal.length:0;
+  const mx=Math.max.apply(null,sob.map(Math.abs).concat([1]));
+  const guardado=ks.filter(k=>{const f=fechamentoDe(k);return f&&f.destino!=='conta';})
+                   .reduce((s,k)=>s+fechamentoDe(k).valor,0);
+  return `<div class="saldo">
+    <div style="display:flex;justify-content:space-between;align-items:flex-end;gap:10px">
+      <div><span class="rot">Sobrou em ${comSal.length} ${comSal.length===1?'mês fechado':'meses fechados'}</span>
+        <b class="val" style="color:${total>=0?'var(--verde)':'var(--rosa)'}">${R$(Math.abs(total))}</b></div>
+      <div style="text-align:right"><span class="rot">média por mês</span>
+        <b class="val" style="font-size:17px;color:var(--cinza)">${R$(media)}</b></div></div>
+    <div class="fluxo" style="border-top:1px solid var(--linha);padding-top:12px;margin-top:14px">
+      <div><div class="rt"><em class="pt" style="background:var(--ouro)"></em>Foi para poupança</div><div class="vl">${R$(guardado)}</div></div>
+      <div style="text-align:right"><div class="rt" style="justify-content:flex-end">Ficou em conta</div>
+        <div class="vl">${R$(Math.max(total-guardado,0))}</div></div></div>
+  </div>
+  <div class="secao-titulo">Mês a mês</div>
+  <div class="cartao">
+    ${ks.map((k,i)=>{const v=sob[i],f=fechamentoDe(k);
+      return `<div class="hbar"><div class="l">
+        <span>${nomeMes(k)}${f&&f.destino?` <span style="color:var(--cinza);font-size:11px">${f.destino==='conta'?'em conta':'→ '+esc(f.destino)}</span>`:(salarioRecebido(k)===null?' <span style="color:var(--ouro);font-size:11px">falta registrar o salário</span>':'')}</span>
+        <b style="color:${v>=0?'var(--verde)':'var(--rosa)'}">${R$(v)}</b></div>
+        <div class="t"><i style="width:${(Math.abs(v)/mx)*100}%;background:${v>=0?'var(--verde)':'var(--rosa)'}"></i></div></div>`;}).join('')}
+  </div>
+  <div class="secao-titulo">Acertos</div>
+  ${ks.slice().reverse().map(k=>cartaoFechamento(k)).join('')}`;
+}
 function grafDividasAno(){
   const a=UI.anoRef,meses=mesesDoAno(a);
   const pesos=meses.map(pesoDividaMes),tot=pesos.reduce((s,v)=>s+v,0);
@@ -915,6 +1063,9 @@ function telaInicio(){
   const ent=entradasMes(k),saldo=ent-totalMes-aportesMes(k);
   const larg=Math.max(ent,totalMes)||1;
   return `
+  ${(()=>{const ant=somaMes(k,-1);
+      return acertoPendente(ant)
+        ? `<div class="secao-titulo">${salarioRecebido(ant)!==null?'Acerto de '+nomeMes(ant):nomeMes(ant)+' fechou'}</div>`+cartaoFechamento(ant) : '';})()}
   <div class="secao-titulo">${nomeMes(k)} de ${k.slice(0,4)}</div>
   ${cartaoPlano(k)}
   ${cartaoConta(k)}
@@ -1558,7 +1709,8 @@ function telaGrafico(){
     <button class="chip" aria-pressed="${UI.vistaGraf==='mes'}" onclick="UI.vistaGraf='mes';render()">Por mês</button>
     <button class="chip" aria-pressed="${UI.vistaGraf==='ano'}" onclick="UI.vistaGraf='ano';render()">Por ano</button>
     <button class="chip tj" aria-pressed="${UI.vistaGraf==='divano'}" onclick="UI.vistaGraf='divano';render()">Dívidas no ano</button>
-  </div>` + (UI.vistaGraf==='dividas'?grafDividas():UI.vistaGraf==='divano'?grafDividasAno():UI.vistaGraf==='ano'?grafAno():grafMes());
+    <button class="chip" aria-pressed="${UI.vistaGraf==='sobras'}" onclick="UI.vistaGraf='sobras';render()">Sobras</button>
+  </div>` + (UI.vistaGraf==='sobras'?grafSobras():UI.vistaGraf==='dividas'?grafDividas():UI.vistaGraf==='divano'?grafDividasAno():UI.vistaGraf==='ano'?grafAno():grafMes());
 }
 function grafMes(){
   const kA=cicloAtual(),chaves=[];
