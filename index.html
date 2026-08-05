@@ -69,6 +69,8 @@ main{padding:16px 16px 8px}
 .linha-item.fx{border-left:3px solid var(--ouro)}
 .linha-item.pc{border-left:3px solid var(--rosa)}
 .linha-item.dv{border-left:3px solid var(--tijolo)}
+.linha-item.pp{border-left:3px solid var(--ouro)}
+.tag.pou{background:rgba(190,135,36,.16);color:#8A6212}
 .tag{display:inline-block;font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:600;padding:3px 7px;border-radius:6px;background:rgba(18,50,42,.07);color:var(--cinza)}
 .tag.rec{background:rgba(46,125,82,.13);color:var(--verde)}
 .tag.fixa{background:rgba(190,135,36,.16);color:#8A6212}
@@ -279,7 +281,7 @@ const FIREBASE={
 /* Caminho no banco. O trecho aleatório funciona como uma chave:
    sem ele ninguém alcança os dados, mesmo conhecendo o projeto. */
 const SALA="financas/isb-4c7e21a9f3b6";
-const VERSAO="1.5";
+const VERSAO="1.9";
 const CHAVE="minhas-financas-v1";
 /* ========================================================== */
 
@@ -342,10 +344,10 @@ function estadoPadrao(){ return {
     {id:73,nome:'Empréstimo Viena',parcela:0,total:0,pagas:0,inicio:'',dia:1,forma:'pix',saldoAvulso:2000,abatimentos:[]}
   ],
   poupancas:[
-    {id:81,nome:'Casal',meta:0,aporte:250,saldo:711.41,ate:'2026-12'},
-    {id:80,nome:'Escritório',meta:0,aporte:250,saldo:1377.03,ate:'2026-12'}
+    {id:81,nome:'Casal',meta:0,aporte:250,saldo:711.41,ate:'2026-12',dia:5},
+    {id:80,nome:'Escritório',meta:0,aporte:250,saldo:1627.03,ate:'2026-12',dia:5}
   ],
-  parcelasPagas:[],aportesFeitos:[],fechamentos:{}
+  parcelasPagas:[],aportesFeitos:[],aportesValor:{},fechamentos:{}
 };}
 let D=estadoPadrao();
 
@@ -600,6 +602,14 @@ const usado=k=>faturaMes(k)+foraCartao(k);
 const livre=k=>disponivel(k)-usado(k);
 /* quanto ainda cabe no cartão sem furar o plano */
 const cabeNoCartao=k=>Math.max(livre(k),0);
+function itensPoupancaMes(k){
+  if(antesDoInicio(k))return [];
+  return (D.poupancas||[]).filter(p=>(p.aporte>0)&&(!p.ate||k<=p.ate)).map(p=>{
+    const pp=k.split('-').map(Number), ult=new Date(pp[0],pp[1],0).getDate();
+    return {tipo:'poupanca',p,id:p.id,valor:p.aporte,desc:p.nome,
+      data:k+'-'+pad(Math.min(p.dia||5,ult)),chave:p.id+'-'+k};
+  });
+}
 const comprometidoMes=k=>itensDoMes(k).filter(i=>i.tipo!=='vista').reduce((s,i)=>s+i.valor,0);
 const variaveisMes=k=>itensDoMes(k).filter(i=>i.tipo==='vista');
 const gastoVariavel=k=>variaveisMes(k).reduce((s,i)=>s+i.valor,0);
@@ -829,6 +839,8 @@ function cartaoDividasDoMes(k){
       <div><em style="background:var(--rosa)"></em>Parcelas <b>${R$(pc)}</b></div>
       <div><em style="background:var(--ouro)"></em>Fixas <b>${R$(fx)}</b></div>
     </div>
+    ${(()=>{const ps=itensPoupancaMes(k).filter(x=>(D.aportesFeitos||[]).indexOf(x.chave)<0);
+        return ps.length?`<div class="aviso" style="margin:12px 0 0">Falta guardar ${R$(ps.reduce((s,x)=>s+x.valor,0))} em ${ps.map(x=>esc(x.desc)).join(' e ')}. Marque na lista quando fizer.</div>`:'';})()}
     ${Math.abs(prox-atual)>1?`<div class="aviso tj" style="margin:12px 0 0">
       Em <b>${nomeMes(somaMes(k,1))}</b> as dívidas passam de ${R$(atual)} para <b>${R$(prox)}</b> (${dif>0?'+':''}${dif.toFixed(0)}%).</div>`:''}
   </div>`;
@@ -1025,7 +1037,10 @@ function formPote(p){
     <div class="campo"><label>Nome</label><input id="epNome" value="${esc(p.nome)}"></div>
     <div class="dupla"><div class="campo"><label>Meta</label><input id="epMeta" type="number" inputmode="decimal" value="${p.meta||''}" placeholder="0,00"></div>
       <div class="campo"><label>Aporte por mês</label><input id="epAporte" type="number" inputmode="decimal" value="${p.aporte||''}"></div></div>
-    <div class="campo"><label>Guardar até</label><input id="epAte" type="month" value="${p.ate||''}"></div>
+    <div class="dupla">
+      <div class="campo"><label>Saldo atual</label><input id="epSaldo" type="number" inputmode="decimal" value="${p.saldo||0}"></div>
+      <div class="campo"><label>Guardar até</label><input id="epAte" type="month" value="${p.ate||''}"></div></div>
+    <div class="campo"><label>Dia do aporte</label><input id="epDia" type="number" min="1" max="31" value="${p.dia||5}"></div>
     <div class="dupla"><button class="btn claro" onclick="UI.poteAberto=null;render()">Cancelar</button>
       <button class="btn ouro" onclick="salvarPote(${p.id})">Salvar</button></div>
     <button class="btn claro" style="margin-top:8px;color:var(--rosa)" onclick="apagarPote(${p.id})">Excluir poupança</button></div>`;
@@ -1037,6 +1052,8 @@ function salvarPote(id){
   p.meta=+document.getElementById('epMeta').value||0;
   p.aporte=+document.getElementById('epAporte').value||0;
   p.ate=document.getElementById('epAte').value;
+  p.saldo=Math.max(+document.getElementById('epSaldo').value||0,0);
+  p.dia=Math.min(Math.max(+document.getElementById('epDia').value||5,1),31);
   UI.poteAberto=null;salvar();render();toast('Poupança salva');
 }
 function apagarPote(id){if(!confirm('Excluir esta poupança?'))return;D.poupancas=D.poupancas.filter(x=>x.id!==id);UI.poteAberto=null;salvar();render();}
@@ -1055,11 +1072,27 @@ function movPote(id,sinal){
   if(!(n>0))return;
   p.saldo=Math.max(p.saldo+sinal*n,0);salvar();render();toast(sinal>0?'Guardado '+R$(n):'Retirado '+R$(n));
 }
-function toggleAporte(id){
-  const c=id+'-'+cicloAtual(),s=new Set(D.aportesFeitos||[]);
-  if(s.has(c))s.delete(c);
-  else{s.add(c);const p=D.poupancas.find(x=>x.id===id);if(p&&p.aporte)p.saldo+=p.aporte;}
+function toggleAporte(id,k){
+  const mes=k||cicloAtual(), c=id+'-'+mes, s=new Set(D.aportesFeitos||[]);
+  const p=D.poupancas.find(x=>x.id===id);
+  D.aportesValor=D.aportesValor||{};
+  if(s.has(c)){
+    const somado=D.aportesValor[c];
+    const v=(somado===undefined?(p?p.aporte:0):somado);
+    if(p&&v>0)p.saldo=Math.max(p.saldo-v,0);
+    delete D.aportesValor[c];
+    s.delete(c);
+  } else {
+    const r=prompt('Quanto entrou em '+(p?p.nome:'')+' neste mês?\n\nSe o valor já está no saldo, deixe 0.',
+                   (p&&p.aporte?p.aporte:0).toFixed(2));
+    if(r===null)return;
+    const n=Math.max(parseFloat(String(r).replace(',','.'))||0,0);
+    if(p&&n>0)p.saldo+=n;
+    D.aportesValor[c]=n;
+    s.add(c);
+  }
   D.aportesFeitos=[...s];salvar();render();
+  if(p)toast(s.has(c)?p.nome+' · saldo '+R$(p.saldo):'Desmarcado');
 }
 
 /* ==================== INÍCIO ==================== */
@@ -1121,6 +1154,15 @@ function mudarAnoGasto(n){const p=UI.mesRef.split('-');UI.mesRef=(+p[0]+n)+'-'+p
 function linhaItem(i,k){
   const mesCiclo=+k.split('-')[1],mesItem=+i.data.split('-')[1];
   const ant=mesItem!==mesCiclo;
+  if(i.tipo==='poupanca'){
+    const feito=(D.aportesFeitos||[]).indexOf(i.chave)>=0;
+    return `<div class="linha-item pp" style="${feito?'':'border-style:dashed'}">
+      <button class="marca ${feito?'on':''}" onclick="toggleAporte(${i.p.id},'${k}')" aria-label="Marcar que guardei"></button>
+      <div class="corpo" onclick="ir('poupancas')" style="cursor:pointer">
+        <div class="nome">${esc(i.desc)}</div>
+        <div class="sub">dia ${i.p.dia||5} · <span class="tag pou">poupança</span>${feito?' <span class="tag ok">guardei</span>':' <span class="tag">a guardar</span>'}</div></div>
+      <div class="valor">${R$(i.valor)}</div></div>`;
+  }
   if(i.tipo==='fixa'){
     const caiu=i.data<=hojeISO();
     return `<div class="linha-item fx">
@@ -1664,6 +1706,8 @@ function telaGastos(){
   let itens=itensDoMes(k);
   if(f==='dia'){const hj=hojeISO();itens=itens.filter(i=>i.data===hj);}
   const ft=(f==='mes')?UI.filtroTipo:null;
+  if(!ft&&(f==='mes'||f==='dia')) itens=itens.concat(itensPoupancaMes(k)).sort((a,b)=>(a.data||'').localeCompare(b.data||''));
+  if(f==='dia'){const hj=hojeISO();itens=itens.filter(i=>i.data===hj);}
   const lista=!ft?itens
     :ft==='cartao'?itens.filter(ehCartao)
     :ft==='foracartao'?itens.filter(i=>!ehCartao(i))
