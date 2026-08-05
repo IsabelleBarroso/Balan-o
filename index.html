@@ -110,7 +110,12 @@ input,select{font-family:inherit;font-size:inherit;color:inherit}
 .saldo-leg{font-size:12.5px;color:var(--tinta-40);max-width:290px}
 #svgBalanca{display:block;width:100%;height:auto;max-height:190px}
 .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
-.kpi{background:var(--papel);border:1px solid var(--linha);border-radius:var(--raio);padding:13px 14px}
+.kpi{background:var(--papel);border:1px solid var(--linha);border-radius:var(--raio);padding:13px 14px;
+  text-align:left;width:100%;font-family:inherit;position:relative}
+button.kpi{cursor:pointer;transition:border-color .15s,transform .06s}
+button.kpi:hover{border-color:var(--realce)}
+button.kpi:active{transform:scale(.985)}
+button.kpi::after{content:"›";position:absolute;top:10px;right:12px;color:var(--tinta-40);font-size:16px;line-height:1}
 .kpi b{display:block;font-family:var(--display);font-size:21px;font-weight:500;letter-spacing:-.02em;margin-top:4px;font-variant-numeric:tabular-nums}
 .kpi small{color:var(--tinta-40);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;font-weight:600}
 .v-entrada{color:var(--entrada)} .v-saida{color:var(--saida)} .v-divida{color:var(--divida)} .v-cartao{color:var(--cartao)}
@@ -310,6 +315,7 @@ svg text{font-family:var(--corpo);font-variant-numeric:tabular-nums}
     <div class="cartao">
       <div class="cab"><h2 class="tit">Onde o dinheiro passou</h2><span class="selo">mês atual</span></div>
       <div id="porOrigem"></div>
+      <p class="nota" id="notaOrigem"></p>
     </div>
     <div class="cartao" id="cardTeto">
       <div class="cab"><h2 class="tit">Meu teto de gastos</h2>
@@ -323,6 +329,7 @@ svg text{font-family:var(--corpo);font-variant-numeric:tabular-nums}
     <div class="cartao">
       <div class="cab"><h2 class="tit">Orçamento do mês</h2><span class="selo" id="selOrc"></span></div>
       <div id="orcamentos"></div>
+      <p class="nota">Aqui entra só o gasto livre. Assinaturas e parcelas já estão comprometidas e ficam fora da conta.</p>
     </div>
   </section>
 
@@ -411,6 +418,10 @@ svg text{font-family:var(--corpo);font-variant-numeric:tabular-nums}
         <button class="btn fantasma mini" onclick="document.getElementById('arqBackup').click()">Restaurar de um arquivo</button>
         <input type="file" id="arqBackup" accept=".json,application/json" class="oculto" onchange="importarBackup(this)">
       </div>
+    </div>
+    <div class="cartao">
+      <div class="cab"><h2 class="tit">Como contar os gastos</h2></div>
+      <div id="ajRegime"></div>
     </div>
     <div class="cartao">
       <div class="cab"><h2 class="tit">Aparência</h2></div>
@@ -503,8 +514,22 @@ svg text{font-family:var(--corpo);font-variant-numeric:tabular-nums}
 
 <script>
 /* ================= versão ================= */
-const VERSAO='1.8.1';
+const VERSAO='1.11.1';
 const HISTORICO=[
+  {v:'1.11.0', data:'2026-08-05', itens:[
+    'Poupanças com valor mensal aparecem na aba A pagar como compromisso do mês, com botão para guardar.',
+    'Guardar continua não contando como gasto: entra no que sai da conta, não no que você consumiu.',
+    'O teto por categoria passa a medir só o gasto livre: assinaturas e parcelas ficam de fora.',
+    'A fatura de meses futuros avisa que ainda não inclui os gastos do dia a dia.'
+  ]},
+  {v:'1.10.0', data:'2026-08-05', itens:[
+    'As compras no cartão passam a contar no mês da fatura em que caíram, e não no dia em que foram feitas.',
+    'Dá para voltar ao outro jeito em Ajustes, em "Como contar os gastos".'
+  ]},
+  {v:'1.9.0', data:'2026-08-05', itens:[
+    'Os cards do Resumo levam direto ao detalhe: Entradas e Saídas abrem a lista já filtrada, Falta pagar abre o mês e Ainda devo abre as dívidas.',
+    'Explicação de por que o gasto do mês e a fatura do cartão dão valores diferentes.'
+  ]},
   {v:'1.8.1', data:'2026-08-05', itens:[
     'Corrigido o Resumo, que estava com a estrutura quebrada e sobrepunha o nome do mês.'
   ]},
@@ -617,6 +642,10 @@ function aplicarTema(t){
   guardar('tema',escolhido);
   if(typeof telaAtual!=='undefined'&&document.getElementById('app')&&!document.getElementById('app').classList.contains('oculto')) pintarTudo();
 }
+function trocarRegime(r){
+  plano.regime=r; atualizar(); pintarAjustes();
+  aviso(r==='fatura'?'Agora as compras do cartão contam no mês da fatura.':'Agora as compras contam no dia em que foram feitas.');
+}
 function trocarTema(t){ aplicarTema(t); if(telaAtual==='ajustes') pintarAjustes(); aviso('Tema alterado.') }
 
 /* --------- guarda coisas simples no próprio aparelho --------- */
@@ -634,7 +663,7 @@ function aplicar(d){
   dividasManuais=Array.isArray(d.dividas)?d.dividas:[];
   recorrentes=Array.isArray(d.recorrentes)?d.recorrentes:[];
   metas=Array.isArray(d.metas)?d.metas:[];
-  plano=Object.assign({tetoMes:0,tetoCartao:0},d.plano||{});
+  plano=Object.assign({tetoMes:0,tetoCartao:0,regime:'fatura'},d.plano||{});
   if(d.seq&&d.seq>seq) seq=d.seq;
 }
 function empacotar(){
@@ -727,7 +756,7 @@ function criarParcelamento({desc,total,n,cat,dataISO,origem,meio}){
 }
 
 let dividasManuais=[], recorrentes=[], metas=[];
-let plano={tetoMes:0,tetoCartao:0};
+let plano={tetoMes:0,tetoCartao:0,regime:'fatura'};
 
 const PADRAO_CONTAS=[
   {id:'o1',nome:'Conta corrente BB',tipo:'conta',icone:'🏦',cor:'#14203A'},
@@ -803,7 +832,12 @@ const chaveMes=d=>d.slice(0,7);
 const chaveDe=dif=>{const x=new Date(anoAtual,mesAtual-dif,1);return x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')};
 const rotuloMes=ch=>MESES[+ch.slice(5,7)-1]+'/'+ch.slice(2,4);
 const rotuloLongo=ch=>MESES_LONGO[+ch.slice(5,7)-1]+' de '+ch.slice(0,4);
-const doMes=ch=>lancamentos.filter(l=>chaveMes(l.data)===ch);
+/* Em que mês o gasto entra. No modo fatura, a compra no cartão conta
+   no mês da fatura em que ela caiu, e não no dia em que foi feita. */
+function mesDe(l){
+  return (plano.regime==='fatura'&&ehCartao(l.origem))?faturaDe(l.data,l.origem):chaveMes(l.data);
+}
+const doMes=ch=>lancamentos.filter(l=>mesDe(l)===ch);
 const soma=(a,t)=>a.filter(l=>l.tipo===t).reduce((s,l)=>s+l.valor,0);
 const somaVal=a=>a.reduce((s,l)=>s+l.valor,0);
 const dataBR=d=>d.slice(8,10)+'/'+d.slice(5,7);
@@ -910,8 +944,19 @@ function desenharBalanca(ent,sai,animar){
 
 /* ================= resumo ================= */
 let periodoResumo='mes';
+function abrirDe(alvo){
+  if(alvo==='devo') return irPara('dividas');
+  if(alvo==='apagar'){ mesAgenda=chaveDe(0); return irPara('agenda'); }
+  irPara('lancamentos');
+  filtroLanc=periodoResumo==='ano'?'ano':'mes';
+  const fm=document.getElementById('fMes'); if(fm) fm.value=chaveDe(0);
+  const ft=document.getElementById('fTipo'); if(ft) ft.value=alvo==='entradas'?'entrada':'saida';
+  ['fCat','fOrigem'].forEach(id=>{const e=document.getElementById(id); if(e) e.value=''});
+  const fb=document.getElementById('fBusca'); if(fb) fb.value='';
+  pintarLanc(); pintarCabecalho();
+}
 function verPeriodo(p){periodoResumo=p;pintarResumo();pintarCabecalho()}
-const doAno=a=>lancamentos.filter(l=>l.data.slice(0,4)===a);
+const doAno=a=>lancamentos.filter(l=>mesDe(l).slice(0,4)===a);
 function pintarResumo(){
   const ano=String(anoAtual);
   document.getElementById('chipsResumo').innerHTML=
@@ -930,15 +975,18 @@ function pintarResumo(){
   desenharBalanca(ent,sai,!jaAnimou); jaAnimou=true;
 
   const ag=agendaDoMes(ch), falta=ag.filter(i=>!i.pago).reduce((s,i)=>s+i.valor,0);
-  const futuras=lancamentos.filter(l=>l.grupo&&chaveMes(l.data)>ch);
+  const futuras=lancamentos.filter(l=>l.grupo&&mesDe(l)>ch);
   const restManual=dividasManuais.reduce((s,d)=>s+deveDe(d),0);
-  document.getElementById('kpis').innerHTML=(anual?[
-    ['Entradas no ano',brl(ent),'v-entrada'],['Saídas no ano',brl(sai),'v-saida'],
-    ['Média de gasto',brl(sai/jan),''],['Sobra no ano',brl(saldo),saldo>=0?'v-entrada':'v-saida']
+  const cards=anual?[
+    ['Entradas no ano',brl(ent),'v-entrada','entradas'],['Saídas no ano',brl(sai),'v-saida','saidas'],
+    ['Média de gasto',brl(sai/jan),'',''],['Sobra no ano',brl(saldo),saldo>=0?'v-entrada':'v-saida','']
   ]:[
-    ['Entradas',brl(ent),'v-entrada'],['Saídas',brl(sai),'v-saida'],
-    ['Falta pagar no mês',brl(falta),'v-cartao'],['Ainda devo',brl(restManual+somaVal(futuras)),'v-divida']
-  ]).map(([n,v,c])=>`<div class="kpi"><small>${n}</small><b class="${c}">${v}</b></div>`).join('');
+    ['Entradas',brl(ent),'v-entrada','entradas'],['Saídas',brl(sai),'v-saida','saidas'],
+    ['Falta pagar no mês',brl(falta),'v-cartao','apagar'],['Ainda devo',brl(restManual+somaVal(futuras)),'v-divida','devo']
+  ];
+  document.getElementById('kpis').innerHTML=cards.map(([n,v,c,ir])=>ir
+    ?`<button class="kpi" onclick="abrirDe('${ir}')"><small>${n}</small><b class="${c}">${v}</b></button>`
+    :`<div class="kpi"><small>${n}</small><b class="${c}">${v}</b></div>`).join('');
 
   document.getElementById('cardTeto').classList.toggle('oculto',anual);
   const porCat={}; mes.filter(l=>l.tipo==='saida').forEach(l=>porCat[l.cat]=(porCat[l.cat]||0)+l.valor);
@@ -1012,11 +1060,19 @@ function pintarResumo(){
         <div class="barra"><i style="width:${p}%;background:${m.cor||'#0F8A6D'}"></i></div></div>`}).join('');
   }
 
+  const cCard=cartaoAtivo();
+  const nota=document.getElementById('notaOrigem');
+  if(nota) nota.textContent=!cCard?'':(plano.regime==='fatura'
+    ? `As compras no cartão contam no mês da fatura: do dia ${cCard.fechamento+1} ao dia ${cCard.fechamento}. Uma compra do fim do mês passado entra aqui.`
+    : `As compras contam no dia em que foram feitas. Como a fatura fecha dia ${cCard.fechamento}, ela quase sempre dá um valor diferente do gasto do mês.`);
+
+  const livre={};
+  mes.filter(l=>l.tipo==='saida'&&!l.fixo&&!l.grupo).forEach(l=>livre[l.cat]=(livre[l.cat]||0)+l.valor);
   const comOrc=categorias.filter(c=>c.tipo==='saida'&&c.orcamento>0);
-  const estouro=comOrc.filter(c=>(porCat[c.id]||0)>c.orcamento).length;
+  const estouro=comOrc.filter(c=>(livre[c.id]||0)>c.orcamento).length;
   document.getElementById('selOrc').textContent=estouro?estouro+' acima do limite':'tudo dentro do limite';
   document.getElementById('orcamentos').innerHTML=comOrc.map(c=>{
-    const g=porCat[c.id]||0,p=Math.min(100,g/c.orcamento*100),acim=g>c.orcamento;
+    const g=livre[c.id]||0,p=Math.min(100,g/c.orcamento*100),acim=g>c.orcamento;
     return `<div style="margin-bottom:12px"><div class="leg" style="margin-bottom:5px">
       <span>${c.icone} ${c.nome}</span><b style="${acim?'color:var(--saida)':''}">${brl(g)}</b><em>de ${brlCurto(c.orcamento)}</em></div>
       <div class="barra"><i style="width:${p}%;background:${acim?'#B4384E':c.cor}"></i></div></div>`}).join('');
@@ -1038,6 +1094,7 @@ function agendaDoMes(ch){
     if(f.reais.length) partes.push(plural(f.reais.length,'lançamento'));
     if(f.reais.some(l=>l.parc)) partes.push(plural(f.reais.filter(l=>l.parc).length,'parcela'));
     if(f.previsto>0) partes.push(plural(f.qtd,'assinatura')+' prevista'+(f.qtd>1?'s':''));
+    if(ref>faturaAtualDe(c.id)) partes.push('ainda sem os gastos do dia a dia');
     itens.push({dia:c.vencimento,nome:'Fatura '+c.nome,sub:partes.join(' · '),
       valor:f.tot,cor:c.cor,icone:c.icone,etiq:'cartão',pago:vencISO<hojeISO,fatura:ref,cartao:c.id});
   });
@@ -1058,7 +1115,16 @@ function agendaDoMes(ch){
     });
   }
 
-  /* 3. parcelas de empréstimo e financiamento (fora do cartão) */
+  /* 3. o que você guarda todo mês */
+  if(!passado) metas.forEach(m=>{
+    if(!m.mensal||m.mensal<=0) return;
+    const jaGuardou=(m.aportes||[]).some(x=>chaveMes(x.data)===ch&&x.valor>0);
+    itens.push({dia:m.dia||5,nome:'Guardar — '+m.nome,sub:'poupança',valor:m.mensal,
+      cor:m.cor||'#2E7D52',icone:m.icone||'🎯',etiq:futuro?'previsto':'poupança',
+      pago:jaGuardou,meta:futuro?null:m.id});
+  });
+
+  /* 4. parcelas de empréstimo e financiamento (fora do cartão) */
   if(!passado) dividasManuais.forEach(d=>{
     const falta=d.total_p-d.pagas; if(falta<=0) return;
     const jaLancada=doMes(ch).some(l=>l.desc==='Parcela · '+d.nome);
@@ -1128,6 +1194,7 @@ function pintarAgenda(){
       <div class="acoes">
         ${i.fatura?`<button class="ic" title="Ver compras da fatura" onclick="verFatura('${i.fatura}','${i.cartao}')">👁</button>`:''}
         ${(!i.pago&&i.divida)?`<button class="btn fantasma mini" onclick="pagarParcela('${i.divida}')">Pagar</button>`:''}
+        ${(!i.pago&&i.meta)?`<button class="btn fantasma mini" onclick="movimentarMeta('${i.meta}',1)">Guardar</button>`:''}
       </div></div>`).join('')
     :'<div class="vazio">Nada vencendo neste mês.</div>';
 
@@ -1247,10 +1314,10 @@ function pintarLanc(){
         q=document.getElementById('fBusca').value.toLowerCase();
   const periodo=l=>{
     if(filtroLanc==='hoje') return l.data===hojeISO;
-    if(filtroLanc==='ano') return l.data.slice(0,4)===String(anoAtual);
+    if(filtroLanc==='ano') return mesDe(l).slice(0,4)===String(anoAtual);
     if(filtroLanc==='parcelas') return !!l.parc;
     if(filtroLanc==='fixas') return !!l.fixo;
-    return chaveMes(l.data)===mes;
+    return mesDe(l)===mes;
   };
   const ls=lancamentos.filter(periodo).filter(l=>!tipo||l.tipo===tipo)
     .filter(l=>!c||l.cat===c).filter(l=>!o||l.origem===o)
@@ -1380,8 +1447,9 @@ function pintarMetas(){
   document.getElementById('listaMetas').innerHTML=metas.length?metas.map(m=>{
     const saldo=m.saldo||0, alvo=m.alvo||0, pct=alvo?Math.min(100,saldo/alvo*100):0;
     const falta=Math.max(0,alvo-saldo), pm=precisaPorMes(m), ok=alvo&&saldo>=alvo;
-    const info=[m.prazo?'até '+rotuloMes(m.prazo):'sem prazo',
-      alvo?'meta de '+brl(alvo):'sem valor definido'].join(' · ');
+    const info=[m.mensal?brl(m.mensal)+' todo mês, dia '+(m.dia||5):null,
+      m.prazo?'até '+rotuloMes(m.prazo):null,
+      alvo?'meta de '+brl(alvo):null].filter(Boolean).join(' · ')||'sem valor definido';
     return `<div class="divida">
       <div class="divida-topo">
         <div class="item-txt"><b>${m.icone||'🎯'} ${m.nome}${ok?'<span class="tag ok">alcançada</span>':''}</b><small>${info}</small></div>
@@ -1435,10 +1503,16 @@ function abrirMeta(idEdit){
       <div class="campo"><label>Quanto quero juntar (R$)</label><input id="mtAlvo" type="number" step="10" value="${m.alvo||''}" placeholder="opcional"></div>
       <div class="campo"><label>Até quando</label><input id="mtPrazo" type="month" value="${m.prazo||''}"></div>
     </div>
+    <div class="dupla">
+      <div class="campo"><label>Guardar todo mês (R$)</label><input id="mtMensal" type="number" step="10" value="${m.mensal||''}" placeholder="opcional"></div>
+      <div class="campo"><label>Dia</label><input id="mtDia" type="number" min="1" max="31" value="${m.dia||5}"></div>
+    </div>
+    <p class="nota">Preenchendo o valor mensal, essa poupança aparece na aba A pagar como compromisso do mês.</p>
     ${idEdit?'':'<div class="campo"><label>Já tenho guardado (R$)</label><input id="mtSaldo" type="number" step="0.01" value="" placeholder="0,00"></div>'}`,
   ()=>{
     if(!val('mtNome').trim()) return aviso('Dê um nome para a meta.');
-    const dados={nome:val('mtNome').trim(),icone:val('mtIcone')||'🎯',cor:val('mtCor'),alvo:num('mtAlvo'),prazo:val('mtPrazo')||''};
+    const dados={nome:val('mtNome').trim(),icone:val('mtIcone')||'🎯',cor:val('mtCor'),alvo:num('mtAlvo'),
+      prazo:val('mtPrazo')||'',mensal:num('mtMensal'),dia:+val('mtDia')||5};
     if(idEdit) Object.assign(metas.find(x=>x.id===idEdit),dados);
     else{
       const inicial=num('mtSaldo');
@@ -1556,6 +1630,19 @@ function pintarAjustes(){
   document.getElementById('ajConta').textContent=MODO_DEMO
     ?'Modo demonstração: os dados desta tela são fictícios.'
     :'O app abre sem login. Seus dados ficam na nuvem, ligados a este aparelho — por isso vale baixar uma cópia de vez em quando.';
+  const c=cartaoAtivo();
+  const ciclo=c?`do dia ${c.fechamento+1} ao dia ${c.fechamento}`:'do ciclo da fatura';
+  document.getElementById('ajRegime').innerHTML=`
+    <div class="seg" style="display:block">
+      <div class="item-txt" style="margin-bottom:10px"><b>Compras no cartão contam...</b>
+        <small>${plano.regime==='fatura'
+          ? 'No mês da fatura ('+ciclo+'). Uma compra do fim do mês passado conta no mês em que a fatura fecha.'
+          : 'No dia em que você comprou, mesmo que o banco só cobre depois.'}</small></div>
+      <span class="acoes">
+        <button class="btn mini ${plano.regime==='fatura'?'':'fantasma'}" onclick="trocarRegime('fatura')">No mês da fatura</button>
+        <button class="btn mini ${plano.regime==='compra'?'':'fantasma'}" onclick="trocarRegime('compra')">No dia da compra</button>
+      </span>
+    </div>`;
   const temaAtual=lembrar('tema')||'claro';
   document.getElementById('ajTema').innerHTML=`
     <div class="seg">
