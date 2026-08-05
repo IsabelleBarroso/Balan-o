@@ -223,6 +223,13 @@ nav button.gan[aria-current="true"]::before{background:var(--verde)}
 nav button.pou[aria-current="true"]{color:#8A6212}
 nav button.pou[aria-current="true"]::before{background:var(--ouro)}
 nav .divisor{width:1px;background:var(--linha);margin:12px 0}
+#fab{position:fixed;right:16px;bottom:calc(80px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:99px;
+  border:0;background:var(--tinta);color:var(--papel);font-size:30px;line-height:1;font-weight:300;cursor:pointer;z-index:30;
+  box-shadow:0 6px 20px rgba(18,50,42,.35);display:none;align-items:center;justify-content:center;padding:0 0 3px;
+  font-family:var(--texto);transition:transform .15s}
+#fab.on{display:flex}
+#fab:active{transform:scale(.92)}
+@media (min-width:503px){#fab{right:calc(50% - 235px + 16px)}}
 #toast{position:fixed;bottom:96px;left:50%;transform:translateX(-50%) translateY(20px);background:var(--tinta);color:var(--papel);padding:10px 18px;border-radius:99px;font-size:13px;font-weight:500;opacity:0;pointer-events:none;transition:.25s;z-index:60;box-shadow:0 6px 20px rgba(0,0,0,.25)}
 #toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
 .modal{position:fixed;inset:0;background:rgba(18,50,42,.55);display:none;z-index:50;align-items:flex-end;justify-content:center}
@@ -248,7 +255,11 @@ nav .divisor{width:1px;background:var(--linha);margin:12px 0}
   <main id="tela"></main>
   <nav id="nav"></nav>
 </div>
+<button id="fab" onclick="abrirNovoGasto()" aria-label="Lançar gasto">+</button>
 <div id="toast"></div>
+<div class="modal" id="modalGasto" onclick="if(event.target===this)fecharNovoGasto()">
+  <div class="painel" id="painelGasto"></div>
+</div>
 <div class="modal" id="modalAjustes" onclick="if(event.target===this)fecharAjustes()">
   <div class="painel" id="painelAjustes"></div>
 </div>
@@ -268,7 +279,7 @@ const FIREBASE={
 /* Caminho no banco. O trecho aleatório funciona como uma chave:
    sem ele ninguém alcança os dados, mesmo conhecendo o projeto. */
 const SALA="financas/isb-4c7e21a9f3b6";
-const VERSAO="1.1";
+const VERSAO="1.2";
 const CHAVE="minhas-financas-v1";
 /* ========================================================== */
 
@@ -1212,15 +1223,30 @@ function lerCamposGasto(p){
     cat:document.getElementById(p+'Cat').value,forma:document.getElementById(p+'Forma').value,
     parcelado,parcelas:parcelado?Math.max(+document.getElementById(p+'N').value||2,2):0,pagas:0};
 }
-function formGasto(){return `<div class="form"><div class="edit-tit">Novo gasto</div>${camposGasto(null,'n')}
-  <button class="btn" onclick="addGasto()">Lançar gasto</button></div>`;}
+function abrirNovoGasto(){
+  document.getElementById('painelGasto').innerHTML=`
+    <h2>Lançar gasto</h2>
+    <div style="font-size:12px;color:var(--cinza);margin-bottom:16px">
+      Cai automaticamente na fatura de ${nomeMes(cicloISO(hojeISO()))}, que fecha em ${dBR(fimCiclo(cicloISO(hojeISO())))}.</div>
+    ${camposGasto(null,'n')}
+    <div class="dupla" style="margin-top:4px">
+      <button class="btn claro" onclick="fecharNovoGasto()">Cancelar</button>
+      <button class="btn" onclick="addGasto()">Lançar</button></div>`;
+  document.getElementById('modalGasto').classList.add('on');
+  setTimeout(()=>{const c=document.getElementById('nValor'); if(c)c.focus();},120);
+}
+function fecharNovoGasto(){ document.getElementById('modalGasto').classList.remove('on'); }
 function formEdicao(g){return `<div class="form edicao"><div class="edit-tit">Editando</div>${camposGasto(g,'e')}
   <div class="dupla"><button class="btn claro" onclick="UI.editando=null;render()">Cancelar</button>
   <button class="btn" onclick="salvarEdicao(${g.id})">Salvar</button></div></div>`;}
 function addGasto(){
   const d=lerCamposGasto('n');if(!d)return;
-  D.gastos.push(Object.assign({id:novoId()},d));salvar();render();
-  toast('Lançado na fatura de '+nomeMes(cicloISO(d.data)));
+  D.gastos.push(Object.assign({id:novoId()},d));
+  fecharNovoGasto();salvar();render();
+  const k=cicloISO(d.data);
+  toast(d.parcelado
+    ? d.parcelas+'x de '+R$(d.valor/d.parcelas)+' a partir de '+nomeMes(k)
+    : 'Lançado · sobram '+R$(Math.max(livre(cicloAtual()),0)));
 }
 function editarGasto(id){UI.editando=id;render();}
 function salvarEdicao(id){const d=lerCamposGasto('e');if(!d)return;Object.assign(D.gastos.find(g=>g.id===id),d);UI.editando=null;salvar();render();toast('Gasto atualizado');}
@@ -1484,7 +1510,6 @@ function telaGastos(){
     + (f==='dia'?cartaoPlano(cicloAtual()):'')
     + cartaoResumo(itens,f==='mes')
     + (ft?detalheTipo(ft,k):(f==='mes'?cartaoFatura(k)+cartaoDividasDoMes(k):''))
-    + (ft?'':(UI.editando===null?formGasto():''))
     + `<div class="secao-titulo">${ft?ROTULO[ft]+' · '+nomeMes(k):(f==='dia'?'Hoje':'Tudo na fatura de '+nomeMes(k))}</div>`
     + (lista.length
         ? lista.map(i=>(i.tipo!=='fixa'&&i.tipo!=='divida'&&UI.editando===i.id)?formEdicao(D.gastos.find(g=>g.id===i.id)):linhaItem(i,k)).join('')
@@ -1730,6 +1755,8 @@ function render(){
     ABAS.slice(0,4).map(a=>`<button class="${a[0]==='ganhos'?'gan':''}" aria-current="${a[0]===UI.aba}" onclick="ir('${a[0]}')">${a[1]}</button>`).join('')
     +'<div class="divisor"></div>'
     +`<button class="pou" aria-current="${UI.aba==='poupancas'}" onclick="ir('poupancas')">Poupanças</button>`;
+  const fab=document.getElementById('fab');
+  if(fab)fab.className=(UI.aba==='inicio'||UI.aba==='gastos')?'on':'';
   const pou=UI.aba==='poupancas';
   document.getElementById('eyebrow').textContent=pou?'Poupanças':'Financeiro';
   document.getElementById('titulo').textContent=pou?'O que estou guardando':'Minhas finanças';
@@ -1742,6 +1769,7 @@ function render(){
     txt.textContent=(lv>=0?'posso gastar até ':'acima do plano — fecha ')+dBR(fimCiclo(k));
   }
 }
+function fecharTudo(){fecharNovoGasto();}
 function ir(a){UI.aba=a;UI.editando=null;UI.filtroTipo=null;UI.fixaAberta=null;UI.novaFixa=false;UI.poteAberto=null;UI.novoPote=false;UI.divAberta=null;UI.novaDiv=false;render();window.scrollTo(0,0);}
 /* boot */
 const salvo=lerLocal();
